@@ -27,7 +27,7 @@ func init() {
 	flag.UintVar(&details.LocalHttpPort, "port", 80, "port to bind to")
 	details.ApiVersion = "1.23.0"
 	details.SwVersion = "20180109"
-	details.datastoreVersion = 72
+	details.DatastoreVersion = 72
 	details.Mac = macs[0]
 }
 
