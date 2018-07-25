@@ -1,0 +1,39 @@
+settings:
+  files:
+    outputs:
+      status: false
+      path: ""
+      name: .r.outputs.log
+    logs:
+      status: false
+      path: ""
+      name: .r.logs.log
+    errors:
+      status: false
+      path: ""
+      name: .r.errors.log
+  legacy:
+    force: false
+    interval: 0s
+schema:
+- name: onebridge
+  path: /home/herman/go/src/github.com/hermanbanken/huemmux
+  commands:
+    vet:
+      status: true
+    fmt:
+      status: true
+    run:
+      status: true
+  args:
+  - --port=8080
+  watcher:
+    extensions:
+    - go
+    paths:
+    - /
+    ignored_paths:
+    - .git
+    - .realize
+    - vendor
+  pattern: "n"
