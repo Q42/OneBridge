@@ -2,12 +2,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/namsral/flag"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/elazarl/goproxy"
 	"github.com/gorilla/handlers"
@@ -47,16 +50,40 @@ func main() {
 	h.PathPrefix("/debug").Handler(http.StripPrefix("/debug", static))
 	h.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) { http.Redirect(w, req, "/static/", 302) })
 
-	log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHttpPort)
+	hub := clip.NewHub()
+	h.HandleFunc("/ws", func(w http.ResponseWriter, req *http.Request) { clip.ServeWs(hub, w, req) })
+	go hub.Run()
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, h)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%v", details.LocalIP, details.LocalHttpPort), loggedRouter))
+
+	stop := make(chan os.Signal)
+	signal.Notify(stop, os.Interrupt)
+
+	srv := &http.Server{
+		Addr:    fmt.Sprintf("%s:%v", details.LocalIP, details.LocalHttpPort),
+		Handler: loggedRouter,
+	}
+
+	go func() {
+		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHttpPort)
+		log.Fatal(srv.ListenAndServe())
+		proxy := goproxy.NewProxyHttpServer()
+		proxy.Verbose = true
+	}()
+
+	<-stop
+
+	log.Printf("shutting down")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal(err)
+	}
+
 	// log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%v", details.LocalIP, httpsPort), "server.crt", "server.key", h))
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
-
-	proxy := goproxy.NewProxyHttpServer()
-	proxy.Verbose = true
 }
 
 func sendDescription(w http.ResponseWriter, r *http.Request) {
