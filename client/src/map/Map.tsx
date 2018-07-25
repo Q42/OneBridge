@@ -1,7 +1,8 @@
 import * as React from 'react';
+import { IApi } from '../Api';
 
 interface IProps {
-  apiServer: string;
+  api: IApi;
 }
 
 class Map extends React.Component<IProps> {
