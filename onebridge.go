@@ -2,22 +2,20 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
+	"os"
 	"strings"
-	"flag"
 
-	"github.com/hermanbanken/huemmux/hue"
-	"github.com/hermanbanken/huemmux/clip"
 	"github.com/elazarl/goproxy"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/hermanbanken/huemmux/clip"
+	"github.com/hermanbanken/huemmux/hue"
 )
 
-var macs, _ = hue.GetMacAddr() // "00:17:88:ff:ff:ff" //
-var bridgeID = strings.ToUpper(hue.ConvertMacToBridgeID(macs[0]))
-var uuid = "2f402f80-da50-11e1-9b23-" + strings.ToLower(bridgeID)
-var datastoreVersion = 72
 var details *hue.AdvertiseDetails
 
 func init() {
@@ -28,7 +26,11 @@ func init() {
 	details.ApiVersion = "1.23.0"
 	details.SwVersion = "20180109"
 	details.DatastoreVersion = 72
+
+	var macs, _ = hue.GetMacAddr() // "00:17:88:ff:ff:ff" //
 	details.Mac = macs[0]
+	details.BridgeID = strings.ToUpper(hue.ConvertMacToBridgeID(macs[0]))
+	details.Uuid = "2f402f80-da50-11e1-9b23-" + strings.ToLower(details.BridgeID)
 }
 
 func main() {
@@ -36,21 +38,19 @@ func main() {
 
 	hue.Advertise(*details)
 
-	h := http.NewServeMux()
-	h.HandleFunc("/description.xml", logHandler(sendDescription))
-	h.HandleFunc("/api/", logHandler(clip.Handler(details)))
-	h.HandleFunc("/", logHandler(func(w http.ResponseWriter, req *http.Request) {
-		// The "/" pattern matches everything, so we need to check
-		// that we're at the root here.
-		if req.URL.Path != "/" {
-			http.NotFound(w, req)
-			return
-		}
-		fmt.Fprintf(w, "Welcome to the home page!")
-	}))
+	h := mux.NewRouter()
+	h.StrictSlash(true)
+	h.HandleFunc("/description.xml", sendDescription)
+	clip.Register(h.PathPrefix("/api").Subrouter(), details)
+	static := http.FileServer(http.Dir("static"))
+	h.PathPrefix("/static").Handler(http.StripPrefix("/static", static))
+	h.PathPrefix("/debug").Handler(http.StripPrefix("/debug", static))
+	h.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) { http.Redirect(w, req, "/static/", 302) })
 
 	log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHttpPort)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%v", details.LocalIP, details.LocalHttpPort), h))
+
+	loggedRouter := handlers.LoggingHandler(os.Stdout, h)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%v", details.LocalIP, details.LocalHttpPort), loggedRouter))
 	// log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%v", details.LocalIP, httpsPort), "server.crt", "server.key", h))
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
@@ -59,28 +59,7 @@ func main() {
 	proxy.Verbose = true
 }
 
-func logHandler(deleg func(w http.ResponseWriter, req *http.Request)) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		log.Printf("URL: %s, %s, %s", req.URL.Path, req.Method, req.URL.String())
-		for name, headers := range req.Header {
-			name = strings.ToLower(name)
-			for _, h := range headers {
-				log.Printf("%s: %s", name, h)
-			}
-		}
-		deleg(w, req)
-		log.Println()
-		return
-	}
-}
-
 func sendDescription(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
 	w.Write([]byte(hue.DescriptionXML(*details)))
-}
-
-func randomClientKey() []byte {
-	token := make([]byte, 16)
-	rand.Read(token)
-	return token
 }
