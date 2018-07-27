@@ -2,6 +2,7 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://q42.github.io/OneBridge",
   "dependencies": {
     "create-react-app": "^1.5.2",
     "react": "^16.4.1",
@@ -12,6 +13,7 @@
   "scripts": {
     "start": "react-scripts-ts start",
     "build": "react-scripts-ts build",
+    "build:move": "rsync -a build/ ../docs/",
     "test": "react-scripts-ts test --env=jsdom",
     "eject": "react-scripts-ts eject"
   },

@@ -7,11 +7,10 @@ import './index.css';
 import registerServiceWorker from './registerServiceWorker';
 
 const host = process.env.REACT_APP_API || process.env.API || window.location.host;
-// tslint:disable-next-line:no-console
-console.log(host);
+const publicUrl = process.env.PUBLIC_URL;
 
 ReactDOM.render(
-  <BrowserRouter>
+  <BrowserRouter basename={publicUrl}>
     <App api={makeApi(host)} />
   </BrowserRouter>,
   document.getElementById('root') as HTMLElement

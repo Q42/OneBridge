@@ -7,7 +7,9 @@ export interface IApi {
 
 export function makeApi(host: string): IApi {
     let backoff = 0;
-    let ws = new WebSocket(`ws://${host}/ws`);
+    const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${scheme}//${host}/ws`;
+    let ws = new WebSocket(url);
     // tslint:disable:only-arrow-functions
     // tslint:disable:no-console
     ws.addEventListener("close, error, message, open", function() { console.log(arguments); });
@@ -15,7 +17,7 @@ export function makeApi(host: string): IApi {
     ws.addEventListener("open", () => next());
     ws.addEventListener("close", async () => {
         await sleep(backoff);
-        ws = new WebSocket(`ws://${host}/ws`);
+        ws = new WebSocket(url);
         backoff += 1000;
     })
 
