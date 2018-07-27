@@ -60,7 +60,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%v", details.LocalIP, details.LocalHttpPort),
+		Addr:    fmt.Sprintf(":%v", details.LocalHttpPort),
 		Handler: loggedRouter,
 	}
 

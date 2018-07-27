@@ -17,7 +17,7 @@ settings:
     interval: 0s
 schema:
 - name: onebridge
-  path: /home/herman/go/src/github.com/hermanbanken/huemmux
+  path: $GOPATH/src/github.com/hermanbanken/huemmux
   commands:
     vet:
       status: true
