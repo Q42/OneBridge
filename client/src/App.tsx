@@ -11,13 +11,26 @@ interface IProps {
 }
 
 class App extends React.Component<IProps> {
+
+  public state = { apiHost: this.props.api.host };
+
+  constructor(props: Readonly<IProps>) {
+    super(props);
+    this.urlDialog = this.urlDialog.bind(this);
+  }
+
+  public urlDialog() {
+    localStorage.setItem("apiHost", window.prompt("New API url") || this.state.apiHost);
+    window.location.href = window.location.href;
+  }
+
   public render() {
     // tslint:disable:jsx-no-lambda
     return (
       <div className="App">
         <header className="App-header">
           <h1>OneBridge</h1>
-          <h2>{this.props.api.host}</h2>
+          <h2 onClick={this.urlDialog}>{this.props.api.host}</h2>
           <Menu />
         </header>
         <Switch>
