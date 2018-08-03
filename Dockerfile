@@ -1,12 +1,21 @@
-FROM golang:onbuild as gobuilder
-RUN mkdir -p /go/src/github.com/Q42/OneBridge
-ADD clip hue onebridge.go /go/src/github.com/Q42/OneBridge/
-WORKDIR /go/src/github.com/Q42/OneBridge
-RUN go build onebridge.go -o main .
+FROM golang:1.9 AS builder
 
-FROM scratch
+RUN mkdir -p /go/src/OneBridge
+WORKDIR /go/src/onebridge
+
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+COPY Gopkg.toml Gopkg.lock ./
+RUN dep ensure -vendor-only
+
+ADD clip /go/src/onebridge/clip
+ADD hue /go/src/onebridge/hue
+ADD onebridge.go /go/src/onebridge
+RUN CGO_ENABLED=0 go build -o /main onebridge.go
+
+FROM alpine
 RUN mkdir /app
 WORKDIR /app
-COPY debug docs /app/
-COPY --from=gobuilder main /
+COPY debug /app/debug
+COPY docs /app/docs
+COPY --from=builder /main /
 CMD ["/main"]

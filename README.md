@@ -7,7 +7,8 @@ OneBridge consists of 2 parts:
 2. Client. The client runs in the browser and can be used to configure the server and to control the lamps.
 
 ## Development
-TODOCUMENT
+Running locally: `docker build . -t onebrige && docker run onebridge`.
+See the datafile: `docker exec -it $(docker ps | grep onebridge | awk '{print $1}') cat onebridge.data.json`
 
 ## Usage
 [Open the client](https://q42.github.io/OneBridge).

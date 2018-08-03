@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Q42/OneBridge/hue"
+	"onebridge/hue"
+
 	"github.com/gorilla/mux"
 )
 

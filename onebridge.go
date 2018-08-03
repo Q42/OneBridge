@@ -1,5 +1,6 @@
-// https://github.com/probonopd/ESP8266HueEmulator
 package main
+
+// https://github.com/probonopd/ESP8266HueEmulator
 
 import (
 	"context"
@@ -11,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/namsral/flag"
+	"onebridge/clip"
+	"onebridge/hue"
 
-	"github.com/Q42/OneBridge/clip"
-	"github.com/Q42/OneBridge/hue"
 	"github.com/elazarl/goproxy"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/namsral/flag"
 )
 
 var details *hue.AdvertiseDetails

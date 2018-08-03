@@ -17,7 +17,7 @@ settings:
     interval: 0s
 schema:
 - name: onebridge
-  path: $GOPATH/src/github.com/Q42/OneBridge
+  path: $GOPATH/src/OneBridge
   commands:
     vet:
       status: true
