@@ -13,11 +13,11 @@ import (
 
 	"github.com/namsral/flag"
 
+	"github.com/Q42/OneBridge/clip"
+	"github.com/Q42/OneBridge/hue"
 	"github.com/elazarl/goproxy"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/hermanbanken/huemmux/clip"
-	"github.com/hermanbanken/huemmux/hue"
 )
 
 var details *hue.AdvertiseDetails

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Q42/OneBridge/hue"
 	"github.com/gorilla/mux"
-	"github.com/hermanbanken/huemmux/hue"
 )
 
 // LinkRequest
