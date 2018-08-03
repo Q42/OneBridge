@@ -4,13 +4,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/namsral/flag"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
+
+	"github.com/namsral/flag"
 
 	"github.com/elazarl/goproxy"
 	"github.com/gorilla/handlers"
@@ -26,9 +27,9 @@ func init() {
 	flag.StringVar(&details.FriendlyName, "name", "OneBridge", "bridge friendly name")
 	flag.StringVar(&details.LocalIP, "ip", hue.Localip(), "which IP to bind the server to")
 	flag.UintVar(&details.LocalHttpPort, "port", 80, "port to bind to")
-	details.ApiVersion = "1.23.0"
-	details.SwVersion = "20180109"
-	details.DatastoreVersion = 72
+	flag.StringVar(&details.ApiVersion, "apiversion", "1.23.0", "bridge api version")
+	flag.StringVar(&details.SwVersion, "swversion", "20180109", "bridge software version")
+	flag.IntVar(&details.DatastoreVersion, "datastoreversion", 72, "bridge datastore version")
 
 	var macs, _ = hue.GetMacAddr() // "00:17:88:ff:ff:ff" //
 	details.Mac = macs[0]
@@ -39,20 +40,28 @@ func init() {
 func main() {
 	flag.Parse()
 
-	hue.Advertise(*details)
-
 	h := mux.NewRouter()
 	h.StrictSlash(true)
+
+	// Serve traditional CLIP API
+	hue.Advertise(*details)
 	h.HandleFunc("/description.xml", sendDescription)
 	clip.Register(h.PathPrefix("/api").Subrouter(), details)
-	static := http.FileServer(http.Dir("static"))
-	h.PathPrefix("/static").Handler(http.StripPrefix("/static", static))
-	h.PathPrefix("/debug").Handler(http.StripPrefix("/debug", static))
-	h.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) { http.Redirect(w, req, "/static/", 302) })
 
+	// Serve WebSocket server for ws OneBridge API
 	hub := clip.NewHub()
 	h.HandleFunc("/ws", func(w http.ResponseWriter, req *http.Request) { clip.ServeWs(hub, w, req) })
 	go hub.Run()
+
+	// Serve traditional debug tools
+	debug := http.FileServer(http.Dir("debug"))
+	h.PathPrefix("/debug").Handler(http.StripPrefix("/debug", debug))
+
+	// Serving client React app
+	docs := http.FileServer(http.Dir("docs"))
+	h.PathPrefix("/OneBridge").Handler(http.StripPrefix("/OneBridge", docs))
+
+	h.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) { http.Redirect(w, req, "/OneBridge/", 302) })
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, h)
 
@@ -63,6 +72,8 @@ func main() {
 		Addr:    fmt.Sprintf(":%v", details.LocalHttpPort),
 		Handler: loggedRouter,
 	}
+
+	go clip.SetupDatastore()
 
 	go func() {
 		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHttpPort)
@@ -76,6 +87,8 @@ func main() {
 	log.Printf("shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	clip.ManualSave()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal(err)

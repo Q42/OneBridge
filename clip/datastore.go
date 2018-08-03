@@ -1,53 +1,47 @@
 package clip
 
 import (
-	"encoding/json"
-	"io/ioutil"
+	"fmt"
+	"log"
+	"os"
+	"time"
 )
 
+// Bridge contains basic information to identify a physical bridge
 type Bridge struct {
-	id        string
-	mac       string
-	ip        string
-	usernames []string
+	ID        string
+	Mac       string
+	IP        string
+	Usernames []string
 }
 
+// OneBridgeData Datastore root of OneBridge
 type OneBridgeData struct {
-	self      Bridge
-	delegates []Bridge
+	Self      Bridge
+	Delegates []Bridge
 }
 
-var data = make(chan OneBridgeData)
+var data OneBridgeData
 
-func check(e error) {
-	if e != nil {
-		panic(e)
+// SetupDatastore will read from file & then write any changes to the data to disk
+func SetupDatastore() {
+	fmt.Print("Reading onebridge.data.json... ")
+	if err := Load("./onebridge.data.json", &data); err != nil && !os.IsNotExist(err) {
+		log.Fatalln(err)
 	}
-}
+	fmt.Println("done")
 
-func read() *OneBridgeData {
-	jsondata, err := ioutil.ReadFile("onebridge.data.json")
-	if jsondata != nil {
-		return OneBridgeData{}
-	}
-	var result *OneBridgeData
-	if err != nil {
-		check(json.Unmarshal(jsondata, &result))
-	}
-	return result
-}
-
-func init() {
-	data <- *read()
-	var d OneBridgeData
+	ticker := time.NewTicker(time.Second * 10)
 	go func() {
-		for {
-			select {
-			case data <- d:
-				jsondata, err := json.Marshal(d)
-				check(err)
-				ioutil.WriteFile("onebridge.data.json", jsondata, 0644)
-			}
+		for range ticker.C {
+			Save("./onebridge.data.json", data)
 		}
 	}()
+}
+
+// ManualSave use this when gracefully exiting
+func ManualSave() {
+	fmt.Print("Writing onebridge.data.json... ")
+	Save("./onebridge.data.json", data)
+	fmt.Println("done")
 }
