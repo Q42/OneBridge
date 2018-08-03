@@ -6,8 +6,9 @@
   "dependencies": {
     "create-react-app": "^1.5.2",
     "react": "^16.4.1",
-    "react-designer": "^1.0.8",
+    "react-designer": "https://github.com/mfpiccolo/react-designer",
     "react-dom": "^16.4.1",
+    "react-dropzone": "^4.2.13",
     "react-router-dom": "^4.3.1",
     "react-scripts-ts": "^2.16.0"
   },

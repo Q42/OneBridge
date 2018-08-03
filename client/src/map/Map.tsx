@@ -1,6 +1,8 @@
 import * as React from 'react';
-import Designer, {Rect, Text} from 'react-designer';
+import Designer, { } from 'react-designer';
 import { IApi } from '../Api';
+import { BarLight, PointLight } from './lights';
+import './Map.css';
 
 interface IProps {
   api: IApi;
@@ -10,18 +12,18 @@ class Map extends React.Component<IProps> {
 
   public state = {
     objects: [
-      {type: "text", x: 10, y: 20, text: "Hello!", fill: "red"},
-      {type: "rect", x: 50, y: 70, width: 30, height: 40, fill: "red"}
+      {type: "pointLight", x: 50, y: 70, width: 30, height: 40, fill: "red"},
+      {type: "barLight", x: 50, y: 70, width: 30, height: 40, fill: "red"}
     ]
   };
 
   public render() {
     return (
       <div className="Map">
-        <Designer width={500} height={500}
+        <Designer width={800} height={400}
           objectTypes={{
-            'rect': Rect,
-            'text': Text,
+            'pointLight': PointLight,
+            'barLight': BarLight,
           }}
           onUpdate={(objects: any) => this.setState({objects})}
           objects={this.state.objects} />
