@@ -66,24 +66,14 @@ func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 
 		log.Printf("DeviceType %s => User.ID %s \n", user.DeviceType, user.ID)
 		data.Self.Users = append(data.Self.Users, user)
-		w.Header().Set("Content-Type", "application/json")
+		writeStandardHeaders(w)
 		w.Write([]byte(fmt.Sprintf(`[{"success":{"username": "%s" }}]`, user.ID)))
 	}
 }
 
 func noUserConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", "nginx")
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Connection", "close")
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "Mon, 1 Aug 2011 09:00:00 GMT")
-		w.Header().Set("Access-Control-Max-Age", "3600")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		writeStandardHeaders(w)
 
 		config := `{
 		"name": "$friendlyName",
@@ -113,17 +103,7 @@ func noUserConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *
 
 func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", "nginx")
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Connection", "close")
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "Mon, 1 Aug 2011 09:00:00 GMT")
-		w.Header().Set("Access-Control-Max-Age", "3600")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		writeStandardHeaders(w)
 
 		config := `{ "lights": [], "scenes": [], "sensors": [], "config": { 
 		"name": "$friendlyName",
@@ -138,13 +118,7 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 		"UTC": "$utcTime",
 		"localtime": "$localTime",
 		"timezone": "Europe/Amsterdam",
-		"whitelist": {
-				"83b7780291a6ceffbe0bd049104df": {
-						"last use date": "2018-07-17T07:21:38",
-						"create date": "2018-07-08T08:55:10",
-						"name": "my_hue_app#iphone"
-				}
-		},
+		"whitelist": $whitelist,
 		"swversion": "$swVersion",
 		"apiversion": "$apiVersion",
 		"swupdate": {
@@ -166,6 +140,9 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 
 		l := time.Now()
 		t := time.Now().Add(time.Hour * -2)
+		localTime := l.Format("2006-01-02T15:04:05")
+		utcTime := t.Format("2006-01-02T15:04:05")
+
 		config = strings.Replace(config, "\n", "", -1)
 		config = strings.Replace(config, "\t", "", -1)
 		config = strings.Replace(config, "$friendlyName", details.FriendlyName, -1)
@@ -174,12 +151,41 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 		config = strings.Replace(config, "$bridgeID", details.BridgeID, -1)
 		config = strings.Replace(config, "$apiVersion", details.APIVersion, -1)
 		config = strings.Replace(config, "$swVersion", details.SwVersion, -1)
+		config = strings.Replace(config, "$whitelist", string(getWhitelist()), -1)
 		config = strings.Replace(config, "$datastoreVersion", fmt.Sprintf("%v", details.DatastoreVersion), -1)
-		config = strings.Replace(config, "$utcTime", fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second()), -1)
-		config = strings.Replace(config, "$localTime", fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", l.Year(), l.Month(), l.Day(), l.Hour(), l.Minute(), l.Second()), -1)
+		config = strings.Replace(config, "$utcTime", utcTime, -1)
+		config = strings.Replace(config, "$localTime", localTime, -1)
 
 		w.Write([]byte(config))
 	}
+}
+
+func getWhitelist() []byte {
+	type whitelistEntry struct {
+		LastUseDate string `json:"last use date"`
+		CreateDate  string `json:"create date"`
+		Name        string `json:"name"`
+	}
+
+	datas := make(map[string]whitelistEntry)
+	for _, u := range data.Self.Users {
+		datas[u.ID] = whitelistEntry{LastUseDate: u.LastUseDate, CreateDate: u.CreateDate, Name: u.DeviceType}
+	}
+	jsonData, _ := json.Marshal(datas)
+	return jsonData
+}
+
+func writeStandardHeaders(w http.ResponseWriter) {
+	w.Header().Set("Server", "nginx")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "Mon, 1 Aug 2011 09:00:00 GMT")
+	w.Header().Set("Access-Control-Max-Age", "3600")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
 func randomClientKey() []byte {

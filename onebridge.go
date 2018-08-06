@@ -75,6 +75,7 @@ func main() {
 	}
 
 	go clip.SetupDatastore()
+	clip.RefreshDetails(clip.Bridge{ID: details.BridgeID, Mac: details.Mac, IP: details.LocalIP})
 
 	go func() {
 		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHTTPPort)

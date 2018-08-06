@@ -54,3 +54,10 @@ func ManualSave() {
 	Save("./onebridge.data.json", data)
 	fmt.Println("done")
 }
+
+// RefreshDetails updates the network details of the bridge in CLIP
+func RefreshDetails(bridge Bridge) {
+	data.Self.ID = bridge.ID
+	data.Self.IP = bridge.IP
+	data.Self.Mac = bridge.Mac
+}
