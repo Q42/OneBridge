@@ -13,6 +13,7 @@ import (
 
 	"onebridge/hue"
 
+	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 )
 
@@ -20,13 +21,53 @@ type linkRequest struct {
 	Devicetype string //
 }
 
+type key int
+
+const AuthUser key = 0
+
 // Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/nouser/config", noUserConfig(details))
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
 	r.HandleFunc("/", fullConfig(details)).Methods("GET")
 	r.HandleFunc("/nupnp", nupnp)
+
+	authed := r.PathPrefix("/").Subrouter()
+	authed.Use(data.Self.authMiddleware)
+	authed.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
+		log.Println(fmt.Sprintf(`Clip Username %s`, context.Get(r, AuthUser)))
+		w.WriteHeader(http.StatusOK)
+	})
 	r.Handle("/", headerLoggerHandler(http.NotFoundHandler()))
+}
+
+// Middleware function, which will be called for each request
+func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fail := func() {
+			// Write an error and stop the handler chain
+			http.Error(w, "Forbidden", http.StatusForbidden)
+		}
+
+		url := strings.Split(r.RequestURI, "/")
+		if len(url) <= 2 {
+			fail()
+			return
+		}
+		username := url[2]
+		for _, u := range data.Self.Users {
+			if u.ID == username {
+				// We found the token in our map
+				context.Set(r, AuthUser, username)
+				log.Printf("Authenticated user %s\n", username)
+				// Pass down the request to the next middleware (or final handler)
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		fail()
+	})
 }
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
