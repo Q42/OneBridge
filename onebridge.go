@@ -27,15 +27,15 @@ func init() {
 	details = &hue.AdvertiseDetails{}
 	flag.StringVar(&details.FriendlyName, "name", "OneBridge", "bridge friendly name")
 	flag.StringVar(&details.LocalIP, "ip", hue.Localip(), "which IP to bind the server to")
-	flag.UintVar(&details.LocalHttpPort, "port", 80, "port to bind to")
-	flag.StringVar(&details.ApiVersion, "apiversion", "1.23.0", "bridge api version")
+	flag.UintVar(&details.LocalHTTPPort, "port", 80, "port to bind to")
+	flag.StringVar(&details.APIVersion, "apiversion", "1.23.0", "bridge api version")
 	flag.StringVar(&details.SwVersion, "swversion", "20180109", "bridge software version")
 	flag.IntVar(&details.DatastoreVersion, "datastoreversion", 72, "bridge datastore version")
 
 	var macs, _ = hue.GetMacAddr() // "00:17:88:ff:ff:ff" //
 	details.Mac = macs[0]
 	details.BridgeID = strings.ToUpper(hue.ConvertMacToBridgeID(macs[0]))
-	details.Uuid = "2f402f80-da50-11e1-9b23-" + strings.ToLower(details.BridgeID)
+	details.UUID = "2f402f80-da50-11e1-9b23-" + strings.ToLower(details.BridgeID)
 }
 
 func main() {
@@ -70,14 +70,14 @@ func main() {
 	signal.Notify(stop, os.Interrupt)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%v", details.LocalHttpPort),
+		Addr:    fmt.Sprintf(":%v", details.LocalHTTPPort),
 		Handler: loggedRouter,
 	}
 
 	go clip.SetupDatastore()
 
 	go func() {
-		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHttpPort)
+		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHTTPPort)
 		log.Fatal(srv.ListenAndServe())
 		proxy := goproxy.NewProxyHttpServer()
 		proxy.Verbose = true

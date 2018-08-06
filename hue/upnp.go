@@ -2,24 +2,27 @@ package hue
 
 import (
 	"fmt"
-	"time"
 	"log"
 	"strings"
+	"time"
+
 	"github.com/koron/go-ssdp"
 )
 
+// AdvertiseDetails contains everything that is needed to advertise as a Hue bridge.
 type AdvertiseDetails struct {
-	ApiVersion string
-	BridgeID string
-	Uuid string
-	LocalIP string
-	LocalHttpPort uint
-	FriendlyName string
-	SwVersion string
+	APIVersion       string
+	BridgeID         string
+	UUID             string
+	LocalIP          string
+	LocalHTTPPort    uint
+	FriendlyName     string
+	SwVersion        string
 	DatastoreVersion int
-	Mac string
+	Mac              string
 }
 
+// Advertise starts the advertising as a Hue bridge.
 func Advertise(details AdvertiseDetails) {
 	// start advertising it!
 	_, err2 := advertiseSSDP(details)
@@ -29,11 +32,11 @@ func Advertise(details AdvertiseDetails) {
 }
 
 func advertiseSSDP(details AdvertiseDetails) (*ssdp.Advertiser, error) {
-	serverSignature := fmt.Sprintf("Linux/3.14.0 UPnP/1.0 IpBridge/%s\r\nhue-bridgeid: %s", details.ApiVersion, details.BridgeID)
+	serverSignature := fmt.Sprintf("Linux/3.14.0 UPnP/1.0 IpBridge/%s\r\nhue-bridgeid: %s", details.APIVersion, details.BridgeID)
 	adv, err := ssdp.Advertise(
 		"urn:schemas-upnp-org:device:basic:1",
-		"uuid:"+details.Uuid+"",
-		fmt.Sprintf("http://%s:%v/description.xml", details.LocalIP, details.LocalHttpPort),
+		"uuid:"+details.UUID+"",
+		fmt.Sprintf("http://%s:%v/description.xml", details.LocalIP, details.LocalHTTPPort),
 		serverSignature,
 		100)
 
@@ -59,6 +62,7 @@ func sendAlive(advertiser *ssdp.Advertiser) {
 	}
 }
 
+// DescriptionXML returns similar XML to which the Hue bridge exposes at /description.xml for discovery.
 func DescriptionXML(details AdvertiseDetails) string {
 	deviceXML := `<root xmlns="urn:schemas-upnp-org:device-1-0">
 	<specVersion>
@@ -92,7 +96,7 @@ func DescriptionXML(details AdvertiseDetails) string {
 
 	deviceXML = strings.Replace(deviceXML, "$BaseURL", fmt.Sprintf("http://%s:%v/", details.LocalIP, 80), -1)
 	deviceXML = strings.Replace(deviceXML, "$bridgeID", details.BridgeID, -1)
-	deviceXML = strings.Replace(deviceXML, "$uuid", details.Uuid, -1)
+	deviceXML = strings.Replace(deviceXML, "$uuid", details.UUID, -1)
 	deviceXML = strings.Replace(deviceXML, "$localIP", details.LocalIP, -1)
 	deviceXML = strings.Replace(deviceXML, "$friendlyName", details.FriendlyName, -1)
 
