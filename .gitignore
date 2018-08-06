@@ -1,3 +1,4 @@
 onebridge
 vendor
 resources
+*.data.json

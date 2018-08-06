@@ -2,6 +2,7 @@ package clip
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,12 +16,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// LinkRequest
-type LinkRequest struct {
+type linkRequest struct {
 	Devicetype string //
 }
 
-// Clip Routes
+// Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/nouser/config", noUserConfig(details))
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
@@ -31,21 +31,43 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Body == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`[{"error":{"type":5,"address":"/","description":"invalid/missing parameters in body"}}]`))
+			return
+		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			panic(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Something bad happened!"))
+			log.Println(err)
+			return
 		}
-		log.Println(string(body))
-		var link LinkRequest
-		err = json.Unmarshal(body, &link)
-		if err != nil {
-			panic(err)
-		}
-		log.Println(link.Devicetype)
 
+		var link linkRequest
+		err = json.Unmarshal(body, &link)
+
+		if err != nil {
+			log.Println(string(body))
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid or unparsable JSON."))
+			log.Println(err)
+			return
+		}
+
+		current := time.Now()
+		user := BridgeUser{
+			Type:       "hue",
+			ID:         strings.ToLower(randomHexString(16)),
+			DeviceType: link.Devicetype,
+			CreateDate: current.Format("2006-01-02T15:04:05"),
+		}
+
+		log.Printf("DeviceType %s => User.ID %s \n", user.DeviceType, user.ID)
+		data.Self.Users = append(data.Self.Users, user)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"success":{"username": "83b7780291a6ceffbe0bd049104df", "clientkey": "557D78B63DE0D099F7B8AB507C8383E3" }}]`))
-		log.Print("Writing username")
+		w.Write([]byte(fmt.Sprintf(`[{"success":{"username": "%s" }}]`, user.ID)))
 	}
 }
 
@@ -164,6 +186,14 @@ func randomClientKey() []byte {
 	token := make([]byte, 16)
 	rand.Read(token)
 	return token
+}
+
+func randomHexString(len int) string {
+	src := make([]byte, 16)
+	rand.Read(src)
+	dst := make([]byte, hex.EncodedLen(len))
+	hex.Encode(dst, src)
+	return fmt.Sprintf("%s", dst)
 }
 
 func headerLoggerHandler(deleg http.Handler) http.Handler {

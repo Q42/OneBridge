@@ -9,10 +9,19 @@ import (
 
 // Bridge contains basic information to identify a physical bridge
 type Bridge struct {
-	ID        string
-	Mac       string
-	IP        string
-	Usernames []string
+	ID    string
+	Mac   string
+	IP    string
+	Users []BridgeUser
+}
+
+// BridgeUser contains the "whitelist" entries
+type BridgeUser struct {
+	Type        string // hue, google, etc.
+	ID          string
+	DeviceType  string
+	LastUseDate string
+	CreateDate  string
 }
 
 // OneBridgeData Datastore root of OneBridge
