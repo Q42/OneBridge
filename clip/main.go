@@ -44,17 +44,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 // Middleware function, which will be called for each request
 func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fail := func() {
-			// Write an error and stop the handler chain
-			http.Error(w, "Forbidden", http.StatusForbidden)
-		}
-
-		url := strings.Split(r.RequestURI, "/")
-		if len(url) <= 2 {
-			fail()
-			return
-		}
-		username := url[2]
+		username := urlPart(r.RequestURI, 2)
 		for _, u := range data.Self.Users {
 			if u.ID == username {
 				// We found the token in our map
@@ -66,8 +56,26 @@ func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		fail()
+		// Write an error and stop the handler chain
+		http.Error(w, "Forbidden", http.StatusForbidden)
 	})
+}
+
+func urlPart(path string, index int) string {
+	j := strings.Index(path, "/")
+	for index > 0 {
+		index = index - 1
+		if j >= 0 {
+			path = path[(j + 1):]
+		} else {
+			path = ""
+		}
+		j = strings.Index(path, "/")
+	}
+	if j < 0 {
+		return path
+	}
+	return path[:j]
 }
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
