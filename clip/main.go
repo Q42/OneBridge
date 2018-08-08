@@ -45,6 +45,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET")
 	authed.HandleFunc("/{username}/config", putConfig).Methods("PUT")
 	authed.HandleFunc("/{username}/{resourcetype}", resourceList).Methods("GET")
+	authed.HandleFunc("/{username}/{resourcetype}/new", resourceNew).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle).Methods("GET")
 }
 
@@ -217,12 +218,20 @@ func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 func resourceList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Type: %v\n", vars["resourcetype"])
+	fmt.Printf("Type: %v\n", vars["resourcetype"])
+	fmt.Fprintf(w, "[]")
+}
+func resourceNew(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	w.WriteHeader(http.StatusOK)
+	fmt.Printf("Type: %v\n", vars["resourcetype"])
+	fmt.Fprintf(w, `{ "lastscan": null }`)
 }
 func resourceSingle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Type: %v id: %v\n", vars["resourcetype"], vars["resourceid"])
+	fmt.Printf("Type: %v id: %v\n", vars["resourcetype"], vars["resourceid"])
+	fmt.Fprintf(w, "{}")
 }
 
 func emptyArray(w http.ResponseWriter, r *http.Request) {
@@ -256,10 +265,11 @@ func applyConfig(details *hue.AdvertiseDetails, config interface{}, username *st
 		config.ProxyPort = 0
 
 		l := time.Now()
-		t := time.Now().Add(time.Hour * -2)
+		t := time.Now().UTC()
 		config.LocalTime = l.Format("2006-01-02T15:04:05")
 		config.UTC = t.Format("2006-01-02T15:04:05")
-		config.TimeZone = "Europe/Amsterdam"
+		zoneName, _ := time.Now().Zone()
+		config.TimeZone = zoneName
 
 		config.Whitelist = make(map[string]whitelistEntry)
 		for _, u := range data.Self.Users {
