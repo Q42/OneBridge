@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -126,27 +127,34 @@ func urlPart(path string, index int) string {
 	return path[:j]
 }
 
+func parseBody(result interface{}, w http.ResponseWriter, r *http.Request) error {
+	if r.Body == nil {
+		httpError(r)(w, "Invalid/missing parameters in body", http.StatusBadRequest)
+		return errors.New("JSON body missing")
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		httpError(r)(w, "Something bad happened!", http.StatusInternalServerError)
+		log.Println(err)
+		return err
+	}
+
+	err = json.Unmarshal(body, result)
+	if err != nil {
+		log.Println(string(body))
+		httpError(r)(w, "Invalid or unparsable JSON.", http.StatusBadRequest)
+		log.Println(err)
+		return err
+	}
+	return nil
+}
+
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Body == nil {
-			httpError(r)(w, "Invalid/missing parameters in body", http.StatusBadRequest)
-			return
-		}
-
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			httpError(r)(w, "Something bad happened!", http.StatusInternalServerError)
-			log.Println(err)
-			return
-		}
-
 		var link linkRequest
-		err = json.Unmarshal(body, &link)
-
+		err := parseBody(&link, w, r)
 		if err != nil {
-			log.Println(string(body))
-			httpError(r)(w, "Invalid or unparsable JSON.", http.StatusBadRequest)
-			log.Println(err)
 			return
 		}
 
