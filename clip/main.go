@@ -61,9 +61,37 @@ func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		// Write an error and stop the handler chain
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		httpError(r)(w, "Forbidden", http.StatusForbidden)
 	})
+}
+
+// Just like http.Error, but which formats http errors for Hue (200 + status message)
+func httpError(r *http.Request) func(w http.ResponseWriter, status string, statusCode int) {
+	ua := r.Header.Get("User-Agent")
+	isHue := strings.Contains(ua, "Hue") || strings.Contains(ua, "hue")
+	isBrowser := strings.Contains(ua, "Mozilla")
+
+	if isBrowser {
+		return http.Error
+	}
+
+	if !isHue {
+		fmt.Printf("Unknown UA: %s", ua)
+	}
+
+	return func(w http.ResponseWriter, status string, statusCode int) {
+		// Use HTTP200-Hue-error instead of HTTP error
+		writeStandardHeaders(w)
+		w.WriteHeader(http.StatusOK)
+		if statusCode == http.StatusForbidden {
+			w.Write([]byte(`[{"error":{"type":1,"address":"/","description":"unauthorized user"}}]`))
+		} else if statusCode == http.StatusBadRequest {
+			w.Write([]byte(`[{"error":{"type":5,"address":"/","description":"invalid/missing parameters in body"}}]`))
+		} else {
+			// TODO learn more error.type's and implement those separately
+			w.Write([]byte(fmt.Sprintf(`[{"error":{"type":0,"address":"/","description":"%s"}}]`, status)))
+		}
+	}
 }
 
 func urlPart(path string, index int) string {
@@ -86,15 +114,13 @@ func urlPart(path string, index int) string {
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Body == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`[{"error":{"type":5,"address":"/","description":"invalid/missing parameters in body"}}]`))
+			httpError(r)(w, "Invalid/missing parameters in body", http.StatusBadRequest)
 			return
 		}
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Something bad happened!"))
+			httpError(r)(w, "Something bad happened!", http.StatusInternalServerError)
 			log.Println(err)
 			return
 		}
@@ -104,8 +130,7 @@ func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 
 		if err != nil {
 			log.Println(string(body))
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Invalid or unparsable JSON."))
+			httpError(r)(w, "Invalid or unparsable JSON.", http.StatusBadRequest)
 			log.Println(err)
 			return
 		}
