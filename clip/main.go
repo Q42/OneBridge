@@ -51,11 +51,12 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username := urlPart(r.RequestURI, 2)
-		for _, u := range data.Self.Users {
+		for idx, u := range data.Self.Users {
 			if u.ID == username {
 				// We found the token in our map
 				context.Set(r, AuthUser, username)
-				log.Printf("Authenticated user %s\n", username)
+				now := time.Now()
+				data.Self.Users[idx].LastUseDate = now.Format("2006-01-02T15:04:05")
 				// Pass down the request to the next middleware (or final handler)
 				next.ServeHTTP(w, r)
 				return
