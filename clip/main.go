@@ -242,6 +242,9 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 		localTime := l.Format("2006-01-02T15:04:05")
 		utcTime := t.Format("2006-01-02T15:04:05")
 
+		authuser := context.Get(r, AuthUser)
+		var username = authuser.(string)
+
 		config = strings.Replace(config, "\n", "", -1)
 		config = strings.Replace(config, "\t", "", -1)
 		config = strings.Replace(config, "$friendlyName", details.FriendlyName, -1)
@@ -250,7 +253,7 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 		config = strings.Replace(config, "$bridgeID", details.BridgeID, -1)
 		config = strings.Replace(config, "$apiVersion", details.APIVersion, -1)
 		config = strings.Replace(config, "$swVersion", details.SwVersion, -1)
-		config = strings.Replace(config, "$whitelist", string(getWhitelist()), -1)
+		config = strings.Replace(config, "$whitelist", string(getWhitelist(&username)), -1)
 		config = strings.Replace(config, "$datastoreVersion", fmt.Sprintf("%v", details.DatastoreVersion), -1)
 		config = strings.Replace(config, "$utcTime", utcTime, -1)
 		config = strings.Replace(config, "$localTime", localTime, -1)
@@ -259,7 +262,7 @@ func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *ht
 	}
 }
 
-func getWhitelist() []byte {
+func getWhitelist(only *string) []byte {
 	type whitelistEntry struct {
 		LastUseDate string `json:"last use date"`
 		CreateDate  string `json:"create date"`
@@ -268,7 +271,9 @@ func getWhitelist() []byte {
 
 	datas := make(map[string]whitelistEntry)
 	for _, u := range data.Self.Users {
-		datas[u.ID] = whitelistEntry{LastUseDate: u.LastUseDate, CreateDate: u.CreateDate, Name: u.DeviceType}
+		if only == nil || u.ID == *only {
+			datas[u.ID] = whitelistEntry{LastUseDate: u.LastUseDate, CreateDate: u.CreateDate, Name: u.DeviceType}
+		}
 	}
 	jsonData, _ := json.Marshal(datas)
 	return jsonData
