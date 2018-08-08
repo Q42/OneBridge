@@ -67,7 +67,7 @@ func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username := urlPart(r.RequestURI, 2)
 		for idx, u := range data.Self.Users {
-			if u.ID == username {
+			if u.ID == username || username == "0" {
 				// We found the token in our map
 				context.Set(r, authUser, username)
 				now := time.Now()
