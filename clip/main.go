@@ -27,24 +27,37 @@ const AuthUser key = 0
 
 // Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
-	r.HandleFunc("/nouser/config", noUserConfig(details))
+	r.HandleFunc("/nouser/config", noUserConfig(details)).Methods("GET")
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
 	r.HandleFunc("/", fullConfig(details)).Methods("GET")
-	r.HandleFunc("/nupnp", nupnp)
+	r.HandleFunc("/nupnp", nupnp).Methods("GET")
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.Use(data.Self.authMiddleware)
-	authed.HandleFunc("/{username}", fullConfig(details))          // TODO: replace with user config
-	authed.HandleFunc("/{username}/lights", emptyArray)            // TODO: replace with actual
-	authed.HandleFunc("/{username}/groups", emptyArray)            // TODO: replace with actual
-	authed.HandleFunc("/{username}/sensors", emptyArray)           // TODO: replace with actual
-	authed.HandleFunc("/{username}/rules", emptyArray)             // TODO: replace with actual
-	authed.HandleFunc("/{username}/config", noUserConfig(details)) // TODO: replace with user config
-	authed.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
-		log.Println(fmt.Sprintf(`Clip Username %s`, context.Get(r, AuthUser)))
-		w.WriteHeader(http.StatusOK)
-	})
-	r.Handle("/", headerLoggerHandler(http.NotFoundHandler()))
+	authed.HandleFunc("/{username}", fullConfig(details)).Methods("GET")          // TODO: replace with user config
+	authed.HandleFunc("/{username}/lights", emptyArray).Methods("GET")            // TODO: replace with actual
+	authed.HandleFunc("/{username}/groups", emptyArray).Methods("GET")            // TODO: replace with actual
+	authed.HandleFunc("/{username}/scenes", emptyArray).Methods("GET")            // TODO: replace with actual
+	authed.HandleFunc("/{username}/sensors", emptyArray).Methods("GET")           // TODO: replace with actual
+	authed.HandleFunc("/{username}/rules", emptyArray).Methods("GET")             // TODO: replace with actual
+	authed.HandleFunc("/{username}/config", noUserConfig(details)).Methods("GET") // TODO: replace with user config
+
+	notFound := &clipCatchAll{}
+	authed.NotFoundHandler = notFound
+}
+
+type clipCatchAll struct{}
+
+func (h *clipCatchAll) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Unhandled CLIP: %s %s", r.Method, r.RequestURI)
+	if r.Body != nil {
+		body, _ := ioutil.ReadAll(r.Body)
+		fmt.Printf(" `%s`", string(body))
+	}
+	fmt.Print("\n")
+	// no pattern matched; send 404 response
+	http.NotFound(w, r)
+	return
 }
 
 // Middleware function, which will be called for each request
@@ -78,7 +91,7 @@ func httpError(r *http.Request) func(w http.ResponseWriter, status string, statu
 	}
 
 	if !isHue {
-		fmt.Printf("Unknown UA: %s", ua)
+		fmt.Printf("Unknown UA: %s\n", ua)
 	}
 
 	return func(w http.ResponseWriter, status string, statusCode int) {
