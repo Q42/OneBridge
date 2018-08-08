@@ -32,17 +32,19 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
 	r.HandleFunc("/nupnp", nupnp).Methods("GET")
 
+	notFound := &clipCatchAll{}
+
 	authed := r.PathPrefix("/").Subrouter()
+	authed.NotFoundHandler = notFound
+
 	authed.Use(data.Self.authMiddleware)
 	authed.HandleFunc("/{username}/bridges", getDelegates).Methods("GET")
 	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
-	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")          // TODO: replace with user config
-	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET") // TODO: replace with user config
-	authed.HandleFunc("/{username}/{resourcetype}", resourceList)
-	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle)
-
-	notFound := &clipCatchAll{}
-	authed.NotFoundHandler = notFound
+	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")
+	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET")
+	authed.Handle("/{username}/config", notFound).Methods("PUT")
+	authed.HandleFunc("/{username}/{resourcetype}", resourceList).Methods("GET")
+	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle).Methods("GET")
 }
 
 type clipCatchAll struct{}
