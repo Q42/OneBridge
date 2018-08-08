@@ -36,6 +36,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.Use(data.Self.authMiddleware)
 	authed.HandleFunc("/{username}", fullConfig(details))          // TODO: replace with user config
 	authed.HandleFunc("/{username}/lights", emptyArray)            // TODO: replace with actual
+	authed.HandleFunc("/{username}/groups", emptyArray)            // TODO: replace with actual
 	authed.HandleFunc("/{username}/sensors", emptyArray)           // TODO: replace with actual
 	authed.HandleFunc("/{username}/rules", emptyArray)             // TODO: replace with actual
 	authed.HandleFunc("/{username}/config", noUserConfig(details)) // TODO: replace with user config
