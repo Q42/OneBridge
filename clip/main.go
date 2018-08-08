@@ -34,6 +34,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.Use(data.Self.authMiddleware)
+	authed.HandleFunc("/{username}/bridges", getDelegates).Methods("GET")
 	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
 	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")          // TODO: replace with user config
 	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET") // TODO: replace with user config
@@ -170,6 +171,12 @@ func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 		writeStandardHeaders(w)
 		w.Write([]byte(fmt.Sprintf(`[{"success":{"username": "%s" }}]`, user.ID)))
 	}
+}
+
+func getDelegates(w http.ResponseWriter, r *http.Request) {
+	bytes, _ := json.Marshal(data.Delegates)
+	writeStandardHeaders(w)
+	w.Write(bytes)
 }
 
 func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
