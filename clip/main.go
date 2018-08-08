@@ -34,6 +34,11 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.Use(data.Self.authMiddleware)
+	authed.HandleFunc("/{username}", fullConfig(details))          // TODO: replace with user config
+	authed.HandleFunc("/{username}/lights", emptyArray)            // TODO: replace with actual
+	authed.HandleFunc("/{username}/sensors", emptyArray)           // TODO: replace with actual
+	authed.HandleFunc("/{username}/rules", emptyArray)             // TODO: replace with actual
+	authed.HandleFunc("/{username}/config", noUserConfig(details)) // TODO: replace with user config
 	authed.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
 		log.Println(fmt.Sprintf(`Clip Username %s`, context.Get(r, AuthUser)))
 		w.WriteHeader(http.StatusOK)
@@ -148,6 +153,11 @@ func noUserConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *
 
 		w.Write([]byte(config))
 	}
+}
+
+func emptyArray(w http.ResponseWriter, r *http.Request) {
+	writeStandardHeaders(w)
+	w.Write([]byte("[]"))
 }
 
 func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
