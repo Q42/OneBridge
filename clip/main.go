@@ -35,6 +35,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.Use(data.Self.authMiddleware)
+	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
 	authed.HandleFunc("/{username}", fullConfig(details)).Methods("GET")          // TODO: replace with user config
 	authed.HandleFunc("/{username}/lights", emptyArray).Methods("GET")            // TODO: replace with actual
 	authed.HandleFunc("/{username}/groups", emptyArray).Methods("GET")            // TODO: replace with actual
@@ -170,6 +171,22 @@ func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 		data.Self.Users = append(data.Self.Users, user)
 		writeStandardHeaders(w)
 		w.Write([]byte(fmt.Sprintf(`[{"success":{"username": "%s" }}]`, user.ID)))
+	}
+}
+
+func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var bridge Bridge
+		err := parseBody(&bridge, w, r)
+		if err != nil {
+			return
+		}
+
+		log.Printf("Added delegate bridge %s\n", bridge)
+		data.Delegates = append(data.Delegates, bridge)
+
+		writeStandardHeaders(w)
+		w.Write([]byte(fmt.Sprintf(`[{"success":true}]`)))
 	}
 }
 
