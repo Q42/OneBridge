@@ -28,21 +28,17 @@ const AuthUser key = 0
 
 // Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
-	r.HandleFunc("/nouser/config", noUserConfig(details)).Methods("GET")
+	r.HandleFunc("/nouser/config", serveConfigNoAuth(details)).Methods("GET")
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
-	r.HandleFunc("/", fullConfig(details)).Methods("GET")
 	r.HandleFunc("/nupnp", nupnp).Methods("GET")
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.Use(data.Self.authMiddleware)
 	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
-	authed.HandleFunc("/{username}", fullConfig(details)).Methods("GET")          // TODO: replace with user config
-	authed.HandleFunc("/{username}/lights", emptyArray).Methods("GET")            // TODO: replace with actual
-	authed.HandleFunc("/{username}/groups", emptyArray).Methods("GET")            // TODO: replace with actual
-	authed.HandleFunc("/{username}/scenes", emptyArray).Methods("GET")            // TODO: replace with actual
-	authed.HandleFunc("/{username}/sensors", emptyArray).Methods("GET")           // TODO: replace with actual
-	authed.HandleFunc("/{username}/rules", emptyArray).Methods("GET")             // TODO: replace with actual
-	authed.HandleFunc("/{username}/config", noUserConfig(details)).Methods("GET") // TODO: replace with user config
+	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")          // TODO: replace with user config
+	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET") // TODO: replace with user config
+	authed.HandleFunc("/{username}/{resourcetype}", resourceList)
+	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle)
 
 	notFound := &clipCatchAll{}
 	authed.NotFoundHandler = notFound
@@ -104,6 +100,8 @@ func httpError(r *http.Request) func(w http.ResponseWriter, status string, statu
 			w.Write([]byte(`[{"error":{"type":1,"address":"/","description":"unauthorized user"}}]`))
 		} else if statusCode == http.StatusBadRequest {
 			w.Write([]byte(`[{"error":{"type":5,"address":"/","description":"invalid/missing parameters in body"}}]`))
+		} else if statusCode == http.StatusMethodNotAllowed {
+			w.Write([]byte(`[{"error":{"type":4,"address":"/","description":"method, GET, not available for resource, /"}}]`))
 		} else {
 			// TODO learn more error.type's and implement those separately
 			w.Write([]byte(fmt.Sprintf(`[{"error":{"type":0,"address":"/","description":"%s"}}]`, status)))
@@ -190,34 +188,15 @@ func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 	}
 }
 
-func noUserConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeStandardHeaders(w)
-
-		config := `{
-		"name": "$friendlyName",
-		"datastoreversion": "$datastoreVersion",
-		"swversion": "$swVersion",
-		"apiversion": "$apiVersion",
-		"mac": "$mac",
-		"bridgeid": "$bridgeID",
-		"factorynew": false,
-		"replacesbridgeid": null,
-		"modelid": "BSB002",
-		"starterkitid": ""
-	}`
-
-		config = strings.Replace(config, "\n", "", -1)
-		config = strings.Replace(config, "\t", "", -1)
-		config = strings.Replace(config, "$friendlyName", details.FriendlyName, -1)
-		config = strings.Replace(config, "$bridgeID", details.BridgeID, -1)
-		config = strings.Replace(config, "$apiVersion", details.APIVersion, -1)
-		config = strings.Replace(config, "$swVersion", details.SwVersion, -1)
-		config = strings.Replace(config, "$datastoreVersion", fmt.Sprintf("%v", details.DatastoreVersion), -1)
-		config = strings.Replace(config, "$mac", details.Mac, -1)
-
-		w.Write([]byte(config))
-	}
+func resourceList(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Type: %v\n", vars["resourcetype"])
+}
+func resourceSingle(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Type: %v id: %v\n", vars["resourcetype"], vars["resourceid"])
 }
 
 func emptyArray(w http.ResponseWriter, r *http.Request) {
@@ -225,75 +204,88 @@ func emptyArray(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("[]"))
 }
 
-func fullConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeStandardHeaders(w)
+func applyConfig(details *hue.AdvertiseDetails, config interface{}, username *string) {
+	if config, ok := config.(*configShort); ok {
+		config.BridgeID = &details.BridgeID
+		config.FactoryNew = false
+		config.APIVersion = &details.APIVersion
+		config.DatastoreVersion = fmt.Sprintf("%d", details.DatastoreVersion)
+		config.Mac = &details.Mac
+		config.Name = &details.FriendlyName
+		config.ReplacesBridgeID = nil
+		config.StarterKitID = ""
+		config.SwVersion = &details.SwVersion
+	}
 
-		config := `{ "lights": [], "scenes": [], "sensors": [], "config": { 
-		"name": "$friendlyName",
-		"zigbeechannel": 15,
-		"mac": "$mac",
-		"dhcp": true,
-		"ipaddress": "$localIP",
-		"netmask": "255.255.255.0",
-		"gateway": "192.168.178.1",
-		"proxyaddress": "none",
-		"proxyport": 0,
-		"UTC": "$utcTime",
-		"localtime": "$localTime",
-		"timezone": "Europe/Amsterdam",
-		"whitelist": $whitelist,
-		"swversion": "$swVersion",
-		"apiversion": "$apiVersion",
-		"swupdate": {
-				"updatestate": 0,
-				"url": "",
-				"text": "",
-				"notify": false
-		},
-		"linkbutton": true,
-		"portalservices": true,
-		"portalconnection": "connected",
-		"portalstate": {
-				"signedon": true,
-				"incoming": false,
-				"outgoing": true,
-				"communication": "disconnected"
-		}
-}}`
+	if config, ok := config.(*configLong); ok {
+		config.ZigbeeChannel = 15
+		config.LinkButton = true
+		config.PortalServices = true
+
+		config.IPAddress = details.LocalIP
+		config.Dhcp = true
+		config.Netmask = "255.255.0.0"
+		config.Gateway = "10.70.0.1"
+		config.ProxyAddress = "none"
+		config.ProxyPort = 0
 
 		l := time.Now()
 		t := time.Now().Add(time.Hour * -2)
-		localTime := l.Format("2006-01-02T15:04:05")
-		utcTime := t.Format("2006-01-02T15:04:05")
+		config.LocalTime = l.Format("2006-01-02T15:04:05")
+		config.UTC = t.Format("2006-01-02T15:04:05")
+		config.TimeZone = "Europe/Amsterdam"
 
+		config.Whitelist = make(map[string]whitelistEntry)
+		for _, u := range data.Self.Users {
+			if username == nil || u.ID == *username {
+				config.Whitelist[u.ID] = whitelistEntry{LastUseDate: u.LastUseDate, CreateDate: u.CreateDate, Name: u.DeviceType}
+			}
+		}
+	}
+}
+
+func serveConfigNoAuth(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var config = configShort{}
+		applyConfig(details, &config, nil)
+		bytes, _ := json.Marshal(config)
+		writeStandardHeaders(w)
+		w.Write(bytes)
+	}
+}
+
+func serveConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authuser := context.Get(r, AuthUser)
+		var username = authuser.(string)
+		if username == "" {
+			httpError(r)(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		var config = configLong{}
+		applyConfig(details, &config, nil)
+		bytes, _ := json.Marshal(config)
+		writeStandardHeaders(w)
+		w.Write(bytes)
+	}
+}
+
+func serveRoot(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		authuser := context.Get(r, AuthUser)
 		var username = authuser.(string)
 
-		config = strings.Replace(config, "\n", "", -1)
-		config = strings.Replace(config, "\t", "", -1)
-		config = strings.Replace(config, "$friendlyName", details.FriendlyName, -1)
-		config = strings.Replace(config, "$localIP", details.LocalIP, -1)
-		config = strings.Replace(config, "$mac", details.Mac, -1)
-		config = strings.Replace(config, "$bridgeID", details.BridgeID, -1)
-		config = strings.Replace(config, "$apiVersion", details.APIVersion, -1)
-		config = strings.Replace(config, "$swVersion", details.SwVersion, -1)
-		config = strings.Replace(config, "$whitelist", string(getWhitelist(&username)), -1)
-		config = strings.Replace(config, "$datastoreVersion", fmt.Sprintf("%v", details.DatastoreVersion), -1)
-		config = strings.Replace(config, "$utcTime", utcTime, -1)
-		config = strings.Replace(config, "$localTime", localTime, -1)
+		var config = configLong{}
+		applyConfig(details, &config, &username)
 
-		w.Write([]byte(config))
+		var root = configFull{Config: config}
+		bytes, _ := json.Marshal(root)
+		writeStandardHeaders(w)
+		w.Write(bytes)
 	}
 }
 
 func getWhitelist(only *string) []byte {
-	type whitelistEntry struct {
-		LastUseDate string `json:"last use date"`
-		CreateDate  string `json:"create date"`
-		Name        string `json:"name"`
-	}
-
 	datas := make(map[string]whitelistEntry)
 	for _, u := range data.Self.Users {
 		if only == nil || u.ID == *only {
