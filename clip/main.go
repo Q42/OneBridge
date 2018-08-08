@@ -1,6 +1,7 @@
 package clip
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -24,15 +25,15 @@ type linkRequest struct {
 
 type key int
 
-const AuthUser key = 0
+const authUser key = 0
+
+var notFound = &clipCatchAll{}
 
 // Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/nouser/config", serveConfigNoAuth(details)).Methods("GET")
 	r.HandleFunc("/", linkNewUser(details)).Methods("POST")
 	r.HandleFunc("/nupnp", nupnp).Methods("GET")
-
-	notFound := &clipCatchAll{}
 
 	authed := r.PathPrefix("/").Subrouter()
 	authed.NotFoundHandler = notFound
@@ -42,7 +43,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
 	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")
 	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET")
-	authed.Handle("/{username}/config", notFound).Methods("PUT")
+	authed.HandleFunc("/{username}/config", putConfig).Methods("PUT")
 	authed.HandleFunc("/{username}/{resourcetype}", resourceList).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle).Methods("GET")
 }
@@ -68,7 +69,7 @@ func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 		for idx, u := range data.Self.Users {
 			if u.ID == username {
 				// We found the token in our map
-				context.Set(r, AuthUser, username)
+				context.Set(r, authUser, username)
 				now := time.Now()
 				data.Self.Users[idx].LastUseDate = now.Format("2006-01-02T15:04:05")
 				// Pass down the request to the next middleware (or final handler)
@@ -129,17 +130,17 @@ func urlPart(path string, index int) string {
 	return path[:j]
 }
 
-func parseBody(result interface{}, w http.ResponseWriter, r *http.Request) error {
+func parseBody(result interface{}, w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		httpError(r)(w, "Invalid/missing parameters in body", http.StatusBadRequest)
-		return errors.New("JSON body missing")
+		return nil, errors.New("JSON body missing")
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		httpError(r)(w, "Something bad happened!", http.StatusInternalServerError)
 		log.Println(err)
-		return err
+		return nil, err
 	}
 
 	err = json.Unmarshal(body, result)
@@ -147,15 +148,15 @@ func parseBody(result interface{}, w http.ResponseWriter, r *http.Request) error
 		log.Println(string(body))
 		httpError(r)(w, "Invalid or unparsable JSON.", http.StatusBadRequest)
 		log.Println(err)
-		return err
+		return body, err
 	}
-	return nil
+	return body, nil
 }
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var link linkRequest
-		err := parseBody(&link, w, r)
+		_, err := parseBody(&link, w, r)
 		if err != nil {
 			return
 		}
@@ -175,6 +176,22 @@ func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 	}
 }
 
+func putConfig(w http.ResponseWriter, r *http.Request) {
+	var data map[string]interface{}
+	body, err := parseBody(&data, w, r)
+	if err != nil {
+		return
+	}
+
+	if data["timezone"] != nil {
+		writeStandardHeaders(w)
+		w.Write([]byte(fmt.Sprintf(`[{"success":{"/config/timezone":"%s"}}]`, data["timezone"])))
+	} else {
+		r.Body = ioutil.NopCloser(bytes.NewReader(body))
+		notFound.ServeHTTP(w, r)
+	}
+}
+
 func getDelegates(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := json.Marshal(data.Delegates)
 	writeStandardHeaders(w)
@@ -184,7 +201,7 @@ func getDelegates(w http.ResponseWriter, r *http.Request) {
 func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var bridge Bridge
-		err := parseBody(&bridge, w, r)
+		_, err := parseBody(&bridge, w, r)
 		if err != nil {
 			return
 		}
@@ -265,7 +282,7 @@ func serveConfigNoAuth(details *hue.AdvertiseDetails) func(w http.ResponseWriter
 
 func serveConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authuser := context.Get(r, AuthUser)
+		authuser := context.Get(r, authUser)
 		var username = authuser.(string)
 		if username == "" {
 			httpError(r)(w, "Forbidden", http.StatusForbidden)
@@ -281,7 +298,7 @@ func serveConfig(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 
 func serveRoot(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authuser := context.Get(r, AuthUser)
+		authuser := context.Get(r, authUser)
 		var username = authuser.(string)
 
 		var config = configLong{}
