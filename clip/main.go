@@ -19,16 +19,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type linkRequest struct {
-	Devicetype string //
-}
-
-type key int
-
-const authUser key = 0
-
-var notFound = &clipCatchAll{}
-
 // Register clip routes
 func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/nouser/config", serveConfigNoAuth(details)).Methods("GET")
@@ -36,6 +26,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	r.HandleFunc("/nupnp", nupnp).Methods("GET")
 
 	authed := r.PathPrefix("/").Subrouter()
+	var notFound = &clipCatchAll{}
 	authed.NotFoundHandler = notFound
 
 	authed.Use(data.Self.authMiddleware)
@@ -62,6 +53,10 @@ func (h *clipCatchAll) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 	return
 }
+
+type key int
+
+const authUser key = 0
 
 // Middleware function, which will be called for each request
 func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
@@ -169,6 +164,9 @@ func parseBody(result interface{}, w http.ResponseWriter, r *http.Request) ([]by
 }
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	type linkRequest struct {
+		Devicetype string
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var link linkRequest
 		_, err := parseBody(&link, w, r)
