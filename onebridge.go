@@ -32,7 +32,6 @@ func init() {
 	flag.IntVar(&details.DatastoreVersion, "datastoreversion", 72, "bridge datastore version")
 
 	networkInfo, _ := hue.GetNetworkInfo()
-	fmt.Println(networkInfo)
 	flag.StringVar(&networkInfo.IP, "ip", networkInfo.IP, "which IP to bind the server to")
 	flag.StringVar(&networkInfo.Netmask, "netmask", networkInfo.Netmask, "which netmask to advertise")
 	flag.StringVar(&networkInfo.Gateway, "gateway", networkInfo.Gateway, "which gateway to advertise")
