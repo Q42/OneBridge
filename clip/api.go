@@ -24,8 +24,8 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.NotFoundHandler = notFound
 
 	authed.Use(data.Self.authMiddleware)
-	authed.HandleFunc("/{username}/bridges", getDelegates).Methods("GET")
-	authed.HandleFunc("/{username}/bridges", addDelegate(details)).Methods("POST")
+	authed.HandleFunc("/{username}/bridges", apiGetDelegates).Methods("GET")
+	authed.HandleFunc("/{username}/bridges", apiAddDelegate(details)).Methods("POST")
 	authed.HandleFunc("/{username}", serveRoot(details)).Methods("GET")
 	authed.HandleFunc("/{username}/config", serveConfig(details)).Methods("GET")
 	authed.HandleFunc("/{username}/config", putConfig).Methods("PUT")

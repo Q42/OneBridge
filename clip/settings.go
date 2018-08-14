@@ -11,13 +11,52 @@ import (
 	"time"
 )
 
+// NUPNP contains discovery information
 type NUPNP struct {
-	Id                string `json:"id"`
+	ID                string `json:"id"`
 	InternalIPAddress string `json:"internalipaddress"`
+	Name              string `json:"name"`
+	Mac               string `json:"mac"`
 }
 
 var netClient = &http.Client{
 	Timeout: time.Second * 10,
+}
+
+func delegateByMac(mac string) *Bridge {
+	for idx, bridge := range data.Delegates {
+		if bridge.Mac == mac {
+			return &data.Delegates[idx]
+		}
+	}
+	return nil
+}
+
+func wsReplyBridges(c *Client) {
+	type discoveryResult struct {
+		Name   string
+		Bridge Bridge
+		Linked bool
+	}
+	var bridges = make([]discoveryResult, 0)
+	for _, bridge := range nupnpg() {
+		var linked = false
+		if delegate := delegateByMac(bridge.Mac); delegate != nil {
+			linked = true
+			delegate.IP = bridge.InternalIPAddress
+		}
+		bridges = append(bridges, discoveryResult{
+			Bridge: Bridge{
+				ID:  bridge.ID,
+				IP:  bridge.InternalIPAddress,
+				Mac: bridge.Mac,
+			},
+			Name:   bridge.Name,
+			Linked: linked,
+		})
+	}
+	b, _ := json.Marshal(bridges)
+	c.send <- b
 }
 
 func nupnp(w http.ResponseWriter, r *http.Request) {
@@ -30,16 +69,30 @@ func nupnpg() []NUPNP {
 	var target []NUPNP
 	defer res.Body.Close()
 	json.NewDecoder(res.Body).Decode(&target)
+
+	for idx, bridge := range target {
+		configRes, _ := netClient.Get(fmt.Sprintf("http://%s/api/nouser/config", bridge.InternalIPAddress))
+		var configTarget configShort
+		defer configRes.Body.Close()
+		json.NewDecoder(configRes.Body).Decode(&configTarget)
+		target[idx].Name = *configTarget.Name
+		target[idx].Mac = *configTarget.Mac
+	}
+
 	return target
 }
 
 func link(c *Client, message []byte) {
 	type linkreq struct {
-		Id                string
-		Internalipaddress string
+		BridgeID  *string
+		BridgeIP  *string
+		BridgeMac *string
 	}
 	var t *linkreq
 	json.Unmarshal(message, &t)
+	if t.BridgeID == nil || t.BridgeIP == nil || t.BridgeMac == nil {
+		return
+	}
 
 	quit := make(chan bool)
 	ticker := time.NewTicker(time.Millisecond * 500)
@@ -47,21 +100,33 @@ func link(c *Client, message []byte) {
 		for {
 			select {
 			case <-quit:
+				c.send <- []byte(fmt.Sprintf(`{ "type": "status", "status": "polling-stopped", "bridgeid": "%s" }`, *t.BridgeID))
+				ticker.Stop()
 				return
 			case <-ticker.C:
-				response, _ := netClient.Post(fmt.Sprintf("http://%s/api", t.Internalipaddress), "application/json", strings.NewReader(`{ "devicetype": "onebridge#1" }`))
+				response, _ := netClient.Post(fmt.Sprintf("http://%s/api", *t.BridgeIP), "application/json", strings.NewReader(`{ "devicetype": "onebridge#1", "generateclientkey": true }`))
 				body, err := ioutil.ReadAll(response.Body)
 				if err != nil {
 					log.Printf("Error: %v", err)
 				}
-				var arbitrary_json []map[string]interface{}
-				json.Unmarshal(body, &arbitrary_json)
-				if username := get(arbitrary_json[0], []string{"success", "username"}); username != nil {
+				var arbitraryJSON []map[string]interface{}
+				json.Unmarshal(body, &arbitraryJSON)
+				if username := get(arbitraryJSON[0], []string{"success", "username"}); username != nil {
 					ticker.Stop()
-					var success = arbitrary_json[0]["success"].(map[string]interface{})
-					c.send <- []byte(fmt.Sprintf(`{ "username": "%s", "id": "%s" }`, success["username"], t.Id))
+					var success = arbitraryJSON[0]["success"].(map[string]interface{})
+					var clientKey = success["clientkey"].(string)
+					var username = success["username"].(string)
+					var bridge = Bridge{
+						IP:    *t.BridgeIP,
+						ID:    *t.BridgeID,
+						Mac:   *t.BridgeMac,
+						Users: []BridgeUser{BridgeUser{ID: username, ClientKey: &clientKey, Type: "hue"}},
+					}
+					addDelegate(bridge)
+					c.send <- []byte(fmt.Sprintf(`{ "username": "%s", "id": "%s" }`, success["username"], *t.BridgeID))
+					ticker.Stop()
 				} else {
-					c.send <- []byte(`{ "type": "status", "status": "polling" }`)
+					c.send <- []byte(fmt.Sprintf(`{ "type": "status", "status": "polling", "bridgeid": "%s" }`, *t.BridgeID))
 				}
 			}
 		}

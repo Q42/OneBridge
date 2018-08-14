@@ -8,13 +8,13 @@ import (
 	"onebridge/hue"
 )
 
-func getDelegates(w http.ResponseWriter, r *http.Request) {
+func apiGetDelegates(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := json.Marshal(data.Delegates)
 	writeStandardHeaders(w)
 	w.Write(bytes)
 }
 
-func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+func apiAddDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var bridge Bridge
 		_, err := parseBody(&bridge, w, r)
@@ -22,10 +22,14 @@ func addDelegate(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *h
 			return
 		}
 
-		log.Printf("Added delegate bridge %s\n", bridge)
+		log.Printf("Added delegate bridge %v\n", bridge)
 		data.Delegates = append(data.Delegates, bridge)
 
 		writeStandardHeaders(w)
 		w.Write([]byte(fmt.Sprintf(`[{"success":true}]`)))
 	}
+}
+
+func addDelegate(bridge Bridge) {
+	data.Delegates = append(data.Delegates, bridge)
 }

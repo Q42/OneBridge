@@ -1,14 +1,14 @@
 package clip
 
 type configFull struct {
-	Config        configLong
-	Lights        map[string]interface{}
-	Groups        map[string]interface{}
-	Schedules     map[string]interface{}
-	Scenes        map[string]interface{}
-	Rules         map[string]interface{}
-	Sensors       map[string]interface{}
-	ResourceLinks map[string]interface{}
+	Config        configLong             `json:"config"`
+	Lights        map[string]interface{} `json:"lights"`
+	Groups        map[string]interface{} `json:"groups"`
+	Schedules     map[string]interface{} `json:"schedules"`
+	Scenes        map[string]interface{} `json:"scenes"`
+	Rules         map[string]interface{} `json:"rules"`
+	Sensors       map[string]interface{} `json:"sensors"`
+	ResourceLinks map[string]interface{} `json:"resourcelinks"`
 }
 
 type configShort struct {

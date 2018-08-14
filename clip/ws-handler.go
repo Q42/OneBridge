@@ -2,7 +2,6 @@ package clip
 
 import (
 	"encoding/json"
-	"log"
 )
 
 type Message struct {
@@ -36,9 +35,7 @@ func request(c *Client, message []byte) {
 
 	for _, path := range t.Paths {
 		if path == "bridges" {
-			b, _ := json.Marshal(nupnpg())
-			log.Printf(string(b))
-			c.send <- b
+			wsReplyBridges(c)
 		}
 	}
 

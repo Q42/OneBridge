@@ -22,6 +22,7 @@ type BridgeUser struct {
 	DeviceType  string
 	LastUseDate string
 	CreateDate  string
+	ClientKey   *string
 }
 
 // OneBridgeData Datastore root of OneBridge
