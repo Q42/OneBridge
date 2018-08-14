@@ -14,8 +14,8 @@ type AdvertiseDetails struct {
 	APIVersion       string
 	BridgeID         string
 	UUID             string
-	LocalIP          string
-	LocalHTTPPort    uint
+	Network          NetworkInfo
+	HTTPPort         uint
 	FriendlyName     string
 	SwVersion        string
 	DatastoreVersion int
@@ -36,7 +36,7 @@ func advertiseSSDP(details AdvertiseDetails) (*ssdp.Advertiser, error) {
 	adv, err := ssdp.Advertise(
 		"urn:schemas-upnp-org:device:basic:1",
 		"uuid:"+details.UUID+"",
-		fmt.Sprintf("http://%s:%v/description.xml", details.LocalIP, details.LocalHTTPPort),
+		fmt.Sprintf("http://%s:%v/description.xml", details.Network.IP, details.HTTPPort),
 		serverSignature,
 		100)
 
@@ -72,7 +72,7 @@ func DescriptionXML(details AdvertiseDetails) string {
 	<URLBase>$BaseURL</URLBase>
 	<device>
 		<deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
-		<friendlyName>$friendlyName ($localIP)</friendlyName>
+		<friendlyName>$friendlyName ($ip)</friendlyName>
 		<manufacturer>Royal Philips Electronics</manufacturer>
 		<manufacturerURL>http://www.philips.com</manufacturerURL>
 		<modelDescription>Philips hue Personal Wireless Lighting</modelDescription>
@@ -94,10 +94,10 @@ func DescriptionXML(details AdvertiseDetails) string {
 	</device>
 </root>`
 
-	deviceXML = strings.Replace(deviceXML, "$BaseURL", fmt.Sprintf("http://%s:%v/", details.LocalIP, 80), -1)
+	deviceXML = strings.Replace(deviceXML, "$BaseURL", fmt.Sprintf("http://%s:%v/", details.Network.IP, 80), -1)
 	deviceXML = strings.Replace(deviceXML, "$bridgeID", details.BridgeID, -1)
 	deviceXML = strings.Replace(deviceXML, "$uuid", details.UUID, -1)
-	deviceXML = strings.Replace(deviceXML, "$localIP", details.LocalIP, -1)
+	deviceXML = strings.Replace(deviceXML, "$ip", details.Network.IP, -1)
 	deviceXML = strings.Replace(deviceXML, "$friendlyName", details.FriendlyName, -1)
 
 	return deviceXML

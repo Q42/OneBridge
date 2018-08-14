@@ -75,6 +75,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/elazarl/goproxy",
+    "github.com/gorilla/context",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",

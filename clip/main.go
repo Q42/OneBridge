@@ -271,10 +271,10 @@ func applyConfig(details *hue.AdvertiseDetails, config interface{}, username *st
 		config.LinkButton = true
 		config.PortalServices = true
 
-		config.IPAddress = details.LocalIP
+		config.IPAddress = details.Network.IP
 		config.Dhcp = true
-		config.Netmask = "255.255.0.0"
-		config.Gateway = "10.70.0.1"
+		config.Netmask = details.Network.Netmask
+		config.Gateway = details.Network.Gateway
 		config.ProxyAddress = "none"
 		config.ProxyPort = 0
 

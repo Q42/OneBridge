@@ -26,15 +26,20 @@ var details *hue.AdvertiseDetails
 func init() {
 	details = &hue.AdvertiseDetails{}
 	flag.StringVar(&details.FriendlyName, "name", "OneBridge", "bridge friendly name")
-	flag.StringVar(&details.LocalIP, "ip", hue.Localip(), "which IP to bind the server to")
-	flag.UintVar(&details.LocalHTTPPort, "port", 80, "port to bind to")
+	flag.UintVar(&details.HTTPPort, "port", 80, "port to bind to")
 	flag.StringVar(&details.APIVersion, "apiversion", "1.23.0", "bridge api version")
 	flag.StringVar(&details.SwVersion, "swversion", "20180109", "bridge software version")
 	flag.IntVar(&details.DatastoreVersion, "datastoreversion", 72, "bridge datastore version")
 
-	var macs, _ = hue.GetMacAddr() // "00:17:88:ff:ff:ff" //
-	details.Mac = macs[0]
-	details.BridgeID = strings.ToUpper(hue.ConvertMacToBridgeID(macs[0]))
+	networkInfo, _ := hue.GetNetworkInfo()
+	fmt.Println(networkInfo)
+	flag.StringVar(&networkInfo.IP, "ip", networkInfo.IP, "which IP to bind the server to")
+	flag.StringVar(&networkInfo.Netmask, "netmask", networkInfo.Netmask, "which netmask to advertise")
+	flag.StringVar(&networkInfo.Gateway, "gateway", networkInfo.Gateway, "which gateway to advertise")
+	details.Network = *networkInfo
+
+	// Bridges have mac like "00:17:88:ff:ff:ff"
+	details.BridgeID = strings.ToUpper(hue.ConvertMacToBridgeID(details.Network.Mac))
 	details.UUID = "2f402f80-da50-11e1-9b23-" + strings.ToLower(details.BridgeID)
 }
 
@@ -70,15 +75,15 @@ func main() {
 	signal.Notify(stop, os.Interrupt)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%v", details.LocalHTTPPort),
+		Addr:    fmt.Sprintf(":%v", details.HTTPPort),
 		Handler: loggedRouter,
 	}
 
 	go clip.SetupDatastore()
-	clip.RefreshDetails(clip.Bridge{ID: details.BridgeID, Mac: details.Mac, IP: details.LocalIP})
+	clip.RefreshDetails(clip.Bridge{ID: details.BridgeID, Mac: details.Mac, IP: details.Network.IP})
 
 	go func() {
-		log.Printf("OneBridge running on http://%s:%v", details.LocalIP, details.LocalHTTPPort)
+		log.Printf("OneBridge running on http://%s:%v", details.Network.IP, details.HTTPPort)
 		log.Fatal(srv.ListenAndServe())
 		proxy := goproxy.NewProxyHttpServer()
 		proxy.Verbose = true
@@ -96,7 +101,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%v", details.LocalIP, httpsPort), "server.crt", "server.key", h))
+	// log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%v", details.Network.IP, httpsPort), "server.crt", "server.key", h))
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
 }
