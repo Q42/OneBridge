@@ -32,6 +32,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.HandleFunc("/{username}/{resourcetype}", resourceList).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/new", resourceNew).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle).Methods("GET")
+	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}/{field}", resourceUpdate).Methods("PUT")
 }
 
 var notFound = &clipCatchAll{}

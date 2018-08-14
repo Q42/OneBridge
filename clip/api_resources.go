@@ -3,8 +3,10 @@ package clip
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -16,7 +18,13 @@ func resourceIDFromBridge(id string, bridgeIdx int) string {
 	return fmt.Sprintf("%s9%s", strconv.FormatInt(int64(bridgeIdx+1), 9), strconv.FormatInt(uid, 9))
 }
 
+var nineBaseId, _ = regexp.Compile("[0-8]+9[0-8]+")
+
 func resourceIDToBridge(id string) (int, string) {
+	if !nineBaseId.MatchString(id) {
+		fmt.Printf("Could not convert '%s' to tuple of bridge id and resource id.\n", id)
+		return 0, id
+	}
 	split := strings.Index(id, "9")
 	bid := id[:split]
 	rid := id[split+1:]
@@ -74,6 +82,38 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func resourceUpdate(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	var resourceType = vars["resourcetype"]
+	var resourceID = vars["resourceid"]
+	var field = vars["field"]
+
+	if resourceType == "groups" && resourceID == "0" {
+		fmt.Println("TODO FORALL bridges do action")
+	}
+
+	bix, rid := resourceIDToBridge(resourceID)
+	if bix >= len(data.Delegates) {
+		httpError(r)(w, "Bridge not found", 404)
+		return
+	}
+	bridge := data.Delegates[bix]
+	req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/%s/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid, field), r.Body)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	res, err := netClient.Do(req)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	io.Copy(w, res.Body)
 }
 
 func resourceNew(w http.ResponseWriter, r *http.Request) {
