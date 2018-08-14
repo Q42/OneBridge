@@ -28,8 +28,12 @@ func resourceIDToBridge(id string) (int, string) {
 func postProcess(bridgeIdx int, item map[string]interface{}, resourceType string) interface{} {
 	if resourceType == "groups" {
 		item["lights"] = convertIdsInArray(bridgeIdx, item["lights"])
-		item["sensors"] = convertIdsInArray(bridgeIdx, item["sensors"])
-		item["locations"] = convertIdsInMap(bridgeIdx, item["locations"])
+		if item["sensors"] != nil {
+			item["sensors"] = convertIdsInArray(bridgeIdx, item["sensors"])
+		}
+		if item["locations"] != nil {
+			item["locations"] = convertIdsInMap(bridgeIdx, item["locations"])
+		}
 	}
 	return item
 }
