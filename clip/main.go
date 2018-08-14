@@ -79,6 +79,20 @@ func (bridge *Bridge) authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
+		// If we hit this, there are no users yet
+		if username == "0" {
+			current := time.Now()
+			user := BridgeUser{
+				Type:       "hue",
+				ID:         strings.ToLower(randomHexString(16)),
+				DeviceType: "OneBridge#FirstUser",
+				CreateDate: current.Format("2006-01-02T15:04:05"),
+			}
+			data.Self.Users = append(data.Self.Users, user)
+			context.Set(r, authUser, user.ID)
+			next.ServeHTTP(w, r)
+		}
+
 		httpError(r)(w, "Forbidden", http.StatusForbidden)
 	})
 }
