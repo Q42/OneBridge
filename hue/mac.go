@@ -9,6 +9,7 @@ import (
 // GetNetworkInfo traverses all interfaces and returns the network info of the most likely used interface.
 func GetNetworkInfo() (*NetworkInfo, error) {
 	usedIP := getUsedIP()
+
 	ifas, err := net.Interfaces()
 	if err != nil {
 		return nil, err

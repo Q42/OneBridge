@@ -57,7 +57,7 @@ func applyConfig(details *hue.AdvertiseDetails, config interface{}, username *st
 		config.FactoryNew = false
 		config.APIVersion = &details.APIVersion
 		config.DatastoreVersion = fmt.Sprintf("%d", details.DatastoreVersion)
-		config.Mac = &details.Mac
+		config.Mac = &details.Network.Mac
 		config.Name = &details.FriendlyName
 		config.ReplacesBridgeID = nil
 		config.StarterKitID = ""

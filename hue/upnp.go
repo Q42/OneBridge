@@ -19,7 +19,6 @@ type AdvertiseDetails struct {
 	FriendlyName     string
 	SwVersion        string
 	DatastoreVersion int
-	Mac              string
 }
 
 // Advertise starts the advertising as a Hue bridge.
