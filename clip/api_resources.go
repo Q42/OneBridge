@@ -152,7 +152,7 @@ func resourceNew(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.WriteHeader(http.StatusOK)
 	fmt.Printf("Type: %v\n", vars["resourcetype"])
-	fmt.Fprintf(w, `{ "lastscan": null }`)
+	fmt.Fprintf(w, `{ "lastscan": "none" }`)
 }
 
 func resourceSingle(w http.ResponseWriter, r *http.Request) {
