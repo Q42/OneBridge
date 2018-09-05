@@ -22,6 +22,7 @@ import (
 )
 
 var details *hue.AdvertiseDetails
+var datadir string
 
 func init() {
 	details = &hue.AdvertiseDetails{}
@@ -30,6 +31,7 @@ func init() {
 	flag.StringVar(&details.APIVersion, "apiversion", "1.23.0", "bridge api version")
 	flag.StringVar(&details.SwVersion, "swversion", "20180109", "bridge software version")
 	flag.IntVar(&details.DatastoreVersion, "datastoreversion", 72, "bridge datastore version")
+	flag.StringVar(&datadir, "data", ".", "directory containing the data files")
 
 	networkInfo, _ := hue.GetNetworkInfo()
 	flag.StringVar(&networkInfo.IP, "ip", networkInfo.IP, "which IP to bind the server to")
@@ -78,7 +80,7 @@ func main() {
 		Handler: loggedRouter,
 	}
 
-	go clip.SetupDatastore()
+	go clip.SetupDatastore(datadir)
 	clip.RefreshDetails(clip.Bridge{ID: details.BridgeID, Mac: details.Network.Mac, IP: details.Network.IP})
 
 	go func() {
@@ -94,7 +96,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clip.ManualSave()
+	clip.ManualSave(datadir)
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal(err)

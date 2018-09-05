@@ -18,4 +18,4 @@ WORKDIR /app
 COPY debug /app/debug
 COPY docs /app/docs
 COPY --from=builder /main /
-CMD ["/main"]
+CMD ["/main", "-data", "/data"]

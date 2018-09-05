@@ -31,12 +31,15 @@ type OneBridgeData struct {
 	Delegates []Bridge
 }
 
-var data OneBridgeData
+var data = OneBridgeData{
+	Delegates: make([]Bridge, 0), // defaults, instead of `null`
+}
 
 // SetupDatastore will read from file & then write any changes to the data to disk
-func SetupDatastore() {
-	fmt.Print("Reading onebridge.data.json... ")
-	if err := Load("./onebridge.data.json", &data); err != nil && !os.IsNotExist(err) {
+func SetupDatastore(dir string) {
+	file := fmt.Sprintf("%s/onebridge.data.json", dir)
+	fmt.Printf("Reading %s...", file)
+	if err := Load(file, &data); err != nil && !os.IsNotExist(err) {
 		log.Fatalln(err)
 	}
 	fmt.Println("done")
@@ -44,15 +47,16 @@ func SetupDatastore() {
 	ticker := time.NewTicker(time.Second * 10)
 	go func() {
 		for range ticker.C {
-			Save("./onebridge.data.json", data)
+			Save(file, data)
 		}
 	}()
 }
 
 // ManualSave use this when gracefully exiting
-func ManualSave() {
-	fmt.Print("Writing onebridge.data.json... ")
-	Save("./onebridge.data.json", data)
+func ManualSave(dir string) {
+	file := fmt.Sprintf("%s/onebridge.data.json", dir)
+	fmt.Printf("Writing %s...", file)
+	Save(file, data)
 	fmt.Println("done")
 }
 
