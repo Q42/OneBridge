@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -98,8 +99,31 @@ func resourceUpdate(w http.ResponseWriter, r *http.Request) {
 	var resourceID = vars["resourceid"]
 	var field = vars["field"]
 
+	// Handle special "Home" group 0
 	if resourceType == "groups" && resourceID == "0" {
-		fmt.Println("TODO FORALL bridges do action")
+		var wg sync.WaitGroup
+		var result []byte
+		count := forEachBridge(func(bridge *Bridge, idx int) {
+			req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/%s/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, resourceID, field), r.Body)
+			res, err := netClient.Do(req)
+			if err != nil {
+				fmt.Printf("NonFatalError: %v\n", err)
+				wg.Done()
+				return
+			}
+			defer res.Body.Close()
+			result, _ = ioutil.ReadAll(res.Body)
+			wg.Done()
+		})
+		wg.Add(count)
+		wg.Wait()
+		if len(result) == 0 {
+			httpError(r)(w, "No results available", 500)
+			fmt.Printf("FatalError: none of the delegates replied\n")
+			return
+		}
+		w.Write(result)
+		return
 	}
 
 	bix, rid := resourceIDToBridge(resourceID)
