@@ -15,7 +15,7 @@
   "scripts": {
     "start": "react-scripts-ts start",
     "build": "react-scripts-ts build",
-    "build:move": "rsync -a build/ ../docs/",
+    "build:move": "rsync -a --delete --exclude-from=.rsyncignore build/ ../docs/",
     "test": "react-scripts-ts test --env=jsdom",
     "eject": "react-scripts-ts eject"
   },
