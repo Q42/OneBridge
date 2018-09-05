@@ -32,6 +32,15 @@ func delegateByMac(mac string) *Bridge {
 	return nil
 }
 
+// Scans for bridges and updates IPs if necessary
+func rescan() {
+	for _, bridge := range nupnpg() {
+		if delegate := delegateByMac(bridge.Mac); delegate != nil {
+			delegate.IP = bridge.InternalIPAddress
+		}
+	}
+}
+
 func wsReplyBridges(c *Client) {
 	type discoveryResult struct {
 		Name   string

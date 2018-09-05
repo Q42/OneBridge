@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -48,7 +49,6 @@ func postProcess(bridgeIdx int, item map[string]interface{}, resourceType string
 
 func resourceList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	w.WriteHeader(http.StatusOK)
 	var resourceType = vars["resourcetype"]
 
 	if resourceType == "resourcelinks" || resourceType == "rules" || resourceType == "scenes" {
@@ -56,14 +56,15 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resources := make(chan int)
-	errors := make(chan error)
+	errors := make([]error, 0)
 	var all = make(map[string]interface{})
+	var wg sync.WaitGroup
 
 	count := forEachBridge(func(bridge *Bridge, idx int) {
 		res, err := netClient.Get(fmt.Sprintf("http://%s/api/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType))
 		if err != nil {
-			errors <- err
+			errors = append(errors, err)
+			wg.Done()
 			return
 		}
 		defer res.Body.Close()
@@ -72,15 +73,22 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 		for key, item := range target {
 			all[resourceIDFromBridge(key, idx)] = postProcess(idx, item.(map[string]interface{}), resourceType)
 		}
-		resources <- 1
+		wg.Done()
 	})
 
-	for range resources {
-		count = count - 1
-		if count == 0 {
-			json.NewEncoder(w).Encode(all)
-			return
+	wg.Add(count)
+	wg.Wait()
+	for _, err := range errors {
+		if strings.HasSuffix(err.Error(), "connect: no route to host") {
+			// Bridge might be offline or moved to other IP: trigger scan
+			go rescan()
 		}
+		fmt.Printf("NonFatalError: %v\n", err)
+	}
+	err := json.NewEncoder(w).Encode(all)
+	if err != nil {
+		fmt.Printf("FatalError: %v\n", err)
+		httpError(r)(w, err.Error(), 500)
 	}
 }
 
@@ -131,7 +139,6 @@ func resourceSingle(w http.ResponseWriter, r *http.Request) {
 }
 
 func forEachBridge(fn func(bridge *Bridge, idx int)) int {
-	// TODO parallelize
 	for idx := range data.Delegates {
 		go fn(&data.Delegates[idx], idx)
 	}
