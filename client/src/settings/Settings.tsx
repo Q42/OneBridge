@@ -30,7 +30,7 @@ class Settings extends React.Component<IProps,IState> {
     return (
       <div className="Settings">
         <h2>Bridges</h2>
-        {(this.state.bridges || []).map((args) => <div key={args.id}>{<Bridge api={this.props.api} {...args } />}</div>)}
+        {(this.state.bridges || []).map((args) => <Bridge key={args.Bridge.ID} api={this.props.api} {...args } /> )}
       </div>
     );
   }
@@ -47,7 +47,7 @@ class Bridge extends React.Component<{Bridge: IApiBridge, Name: string, Linked: 
 
   public render() {
     return (
-      <div>
+      <div data-id={this.props.Bridge.ID} data-linked={this.props.Linked} data-mac={this.props.Bridge.Mac}>
         {this.props.Name || this.props.Bridge.ID}
         {(!this.props.Linked) ? 
           (<button onClick={connect(this.props.api, this.props.Bridge)}>connect</button>)
