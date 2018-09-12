@@ -32,7 +32,8 @@ type OneBridgeData struct {
 }
 
 var data = OneBridgeData{
-	Delegates: make([]Bridge, 0), // defaults, instead of `null`
+	Self:      Bridge{Users: make([]BridgeUser, 0)}, // defaults, instead of `null`
+	Delegates: make([]Bridge, 0),                    // defaults, instead of `null`
 }
 
 // SetupDatastore will read from file & then write any changes to the data to disk
