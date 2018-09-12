@@ -1,0 +1,17 @@
+version: '3'
+
+volumes:
+  resin-data:
+
+services:
+  main:
+    build:
+      context: .
+      args:
+        GOOS: linux
+        GOARCH: arm
+        BASE: resin/raspberry-pi2-alpine
+    expose:
+      - "80"
+    volumes:
+      - 'resin-data:/data'

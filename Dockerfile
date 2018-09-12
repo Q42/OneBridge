@@ -1,3 +1,5 @@
+ARG BASE=alpine
+
 FROM golang:1.9 AS builder
 
 RUN mkdir -p /go/src/onebridge
@@ -10,9 +12,16 @@ RUN dep ensure -vendor-only
 ADD clip /go/src/onebridge/clip
 ADD hue /go/src/onebridge/hue
 ADD onebridge.go /go/src/onebridge
-RUN env GOOS=linux GOARCH=arm CGO_ENABLED=0 go build -o /main onebridge.go
+ARG GOOS=linux
+RUN echo "$GOOS"
+ARG GOARCH=amd64
+RUN echo "$GOARCH"
+RUN env GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 go build -o /main onebridge.go
 
-FROM resin/raspberry-pi2-alpine
+FROM $BASE
+ARG BASE=alpine
+RUN echo "$BASE"
+
 RUN mkdir /app
 WORKDIR /app
 COPY debug /app/debug
