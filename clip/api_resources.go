@@ -191,9 +191,47 @@ func resourceNew(w http.ResponseWriter, r *http.Request) {
 
 func resourceSingle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	var resourceType = vars["resourcetype"]
+	var resourceID = vars["resourceid"]
+
+	if resourceType == "resourcelinks" || resourceType == "rules" || resourceType == "scenes" {
+		httpError(r)(w, "Not implemented", 404)
+		return
+	}
+
+	// Special group which lists all lights/sensors in the home
+	if resourceType == "groups" && resourceID == "0" {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "{}") // TODO fetch from all, and merge
+		return
+	}
+
+	// Getting single resource from delegate bridge
+	bix, rid := resourceIDToBridge(resourceID)
+	if bix >= len(data.Delegates) {
+		httpError(r)(w, "Bridge not found", 404)
+		return
+	}
+	bridge := data.Delegates[bix]
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	res, err := netClient.Do(req)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	defer res.Body.Close()
+	var target map[string]interface{}
+	json.NewDecoder(res.Body).Decode(&target)
+	postProcess(bix, target, resourceType)
 	w.WriteHeader(http.StatusOK)
-	fmt.Printf("Type: %v id: %v\n", vars["resourcetype"], vars["resourceid"])
-	fmt.Fprintf(w, "{}")
+	bytes, _ := json.Marshal(target)
+	w.Write(bytes)
 }
 
 func forEachBridge(fn func(bridge *Bridge, idx int)) int {
