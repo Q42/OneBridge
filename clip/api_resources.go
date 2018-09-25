@@ -98,6 +98,35 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Updating property like "group/1" with { "type": "Other" }
+func resourceUpdateBody(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	var resourceType = vars["resourcetype"]
+	var resourceID = vars["resourceid"]
+
+	bix, rid := resourceIDToBridge(resourceID)
+	if bix >= len(data.Delegates) {
+		httpError(r)(w, "Bridge not found", 404)
+		return
+	}
+	bridge := data.Delegates[bix]
+	req, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), r.Body)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	res, err := netClient.Do(req)
+	if err != nil {
+		httpError(r)(w, err.Error(), 500)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	io.Copy(w, res.Body)
+}
+
+// Updating property like "group/0/action"
 func resourceUpdate(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var resourceType = vars["resourcetype"]
@@ -143,13 +172,13 @@ func resourceUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	res, err := netClient.Do(req)
 	if err != nil {
 		httpError(r)(w, err.Error(), 500)
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	io.Copy(w, res.Body)
 }
 
