@@ -1,6 +1,7 @@
 package clip
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,6 +44,10 @@ func postProcess(bridgeIdx int, item map[string]interface{}, resourceType string
 		}
 		if item["locations"] != nil {
 			item["locations"] = convertIdsInMap(bridgeIdx, item["locations"])
+		}
+		stream, hasStream := item["stream"].(map[string]interface{})
+		if hasStream && stream["proxynode"] != nil {
+			stream["proxynode"] = convertIdsInURL(bridgeIdx, stream["proxynode"])
 		}
 	}
 	return item
@@ -202,5 +207,25 @@ func convertIdsInMap(bridgeIdx int, any interface{}) interface{} {
 		}
 		return vsm.Interface()
 	}
+	return any
+}
+
+var pathCompmonentTypeID = regexp.MustCompile(`[a-z]+/[0-9]+`)
+
+func convertIdsInURL(bridgeIdx int, any interface{}) interface{} {
+	str, ok := any.(string)
+	if ok {
+		result := pathCompmonentTypeID.ReplaceAllFunc([]byte(str), func(match []byte) []byte {
+			split := bytes.Index(match, []byte("/"))
+			if split < 0 {
+				return match
+			}
+			resourceType := match[0 : split+1]
+			resourceID := resourceIDFromBridge(string(match[split+1:]), bridgeIdx)
+			return append(resourceType, []byte(resourceID)...)
+		})
+		return string(result)
+	}
+	fmt.Print("nok")
 	return any
 }

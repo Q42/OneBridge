@@ -1,6 +1,11 @@
 package clip
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -31,5 +36,19 @@ func TestLargeIdConversion(t *testing.T) {
 	}
 	if resourceID != "18" {
 		t.Errorf("Should convert resourceID back")
+	}
+}
+
+func TestUrlConversion(t *testing.T) {
+	light56 := convertIdsInURL(17, "/lights/56")
+	light56Expected := fmt.Sprintf("/lights/%s", resourceIDFromBridge("56", 17))
+	if light56 != light56Expected {
+		t.Errorf("Should convert light url, expected: '%s', actual: '%s'", light56Expected, light56)
+	}
+
+	bridge := convertIdsInURL(17, "/bridge")
+	bridgeExpected := "/bridge"
+	if bridge != bridgeExpected {
+		t.Errorf("Should convert bridge url, expected: '%s', actual: '%s'", bridgeExpected, bridge)
 	}
 }
