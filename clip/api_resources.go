@@ -21,10 +21,10 @@ func resourceIDFromBridge(id string, bridgeIdx int) string {
 	return fmt.Sprintf("%s9%s", strconv.FormatInt(int64(bridgeIdx+1), 9), strconv.FormatInt(uid, 9))
 }
 
-var nineBaseId, _ = regexp.Compile("[0-8]+9[0-8]+")
+var nineBaseID, _ = regexp.Compile("[0-8]+9[0-8]+")
 
 func resourceIDToBridge(id string) (int, string) {
-	if !nineBaseId.MatchString(id) {
+	if !nineBaseID.MatchString(id) {
 		fmt.Printf("Could not convert '%s' to tuple of bridge id and resource id.\n", id)
 		return 0, id
 	}
