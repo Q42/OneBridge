@@ -23,6 +23,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed := r.PathPrefix("/").Subrouter()
 	authed.NotFoundHandler = notFound
 
+	// sse? http://localhost:8083/v2_pre1/api
 	authed.Use(data.Self.authMiddleware)
 	authed.HandleFunc("/{username}/bridges", apiGetDelegates).Methods("GET")
 	authed.HandleFunc("/{username}/bridges", apiAddDelegate(details)).Methods("POST")
@@ -32,7 +33,7 @@ func Register(r *mux.Router, details *hue.AdvertiseDetails) {
 	authed.HandleFunc("/{username}/config", putConfig).Methods("PUT")
 	authed.HandleFunc("/{username}/{resourcetype}", resourceList).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/new", resourceNew).Methods("GET")
-	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle).Methods("GET")
+	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceSingle(details)).Methods("GET")
 	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}", resourceUpdateBody).Methods("PUT")
 	authed.HandleFunc("/{username}/{resourcetype}/{resourceid}/{field}", resourceUpdate).Methods("PUT")
 }

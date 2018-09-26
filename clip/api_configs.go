@@ -45,6 +45,16 @@ func serveRoot(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *htt
 		applyConfig(details, &config, &username)
 
 		var root = configFull{Config: config}
+
+		// TODO merge all
+		root.Lights = fetchInternal("/api/0/lights", details)
+		root.Groups = fetchInternal("/api/0/groups", details)
+		root.Scenes = fetchInternal("/api/0/scenes", details)
+		root.Schedules = fetchInternal("/api/0/schedules", details)
+		root.Rules = fetchInternal("/api/0/rules", details)
+		root.Sensors = fetchInternal("/api/0/sensors", details)
+		root.ResourceLinks = fetchInternal("/api/0/resourcelinks", details)
+
 		bytes, _ := json.Marshal(root)
 		writeStandardHeaders(w)
 		w.Write(bytes)
@@ -89,5 +99,6 @@ func applyConfig(details *hue.AdvertiseDetails, config interface{}, username *st
 				config.Whitelist[u.ID] = whitelistEntry{LastUseDate: u.LastUseDate, CreateDate: u.CreateDate, Name: u.DeviceType}
 			}
 		}
+
 	}
 }

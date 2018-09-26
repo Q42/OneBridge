@@ -1,12 +1,13 @@
 package clip
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"onebridge/hue"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -50,17 +51,48 @@ func postProcess(bridgeIdx int, item map[string]interface{}, resourceType string
 			stream["proxynode"] = convertIdsInURL(bridgeIdx, stream["proxynode"])
 		}
 	}
+	if resourceType == "scenes" {
+		item["lights"] = convertIdsInArray(bridgeIdx, item["lights"])
+		appData, hasAppdata := item["appdata"].(map[string]interface{})
+		if hasAppdata && appData["data"] != nil {
+			appData["data"] = convertIdsAppData(bridgeIdx, appData["data"])
+		}
+	}
+	if resourceType == "resourcelinks" {
+		links, ok := item["links"].([]interface{})
+		if ok {
+			for idx, url := range links {
+				links[idx] = convertIdsInURL(bridgeIdx, url)
+			}
+		}
+	}
+	if resourceType == "rules" {
+		for key, value := range item {
+			list, isList := value.([]interface{})
+			if isList && (key == "actions" || key == "conditions") {
+				for _, part := range list {
+					object, isObject := part.(map[string]interface{})
+					if isObject && object["address"] != nil {
+						object["address"] = convertIdsInURL(bridgeIdx, object["address"])
+					}
+				}
+			}
+		}
+	}
+
 	return item
 }
+
+var regexID = regexp.MustCompile(`^[0-9]+$`)
 
 func resourceList(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var resourceType = vars["resourcetype"]
 
-	if resourceType == "resourcelinks" || resourceType == "rules" || resourceType == "scenes" {
-		w.Write([]byte("{}"))
-		return
-	}
+	// if resourceType == "resourcelinks" || resourceType == "rules" || resourceType == "scenes" {
+	// 	w.Write([]byte("{}"))
+	// 	return
+	// }
 
 	errors := make([]error, 0)
 	var all = make(map[string]interface{})
@@ -77,7 +109,11 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 		var target map[string]interface{}
 		json.NewDecoder(res.Body).Decode(&target)
 		for key, item := range target {
-			all[resourceIDFromBridge(key, idx)] = postProcess(idx, item.(map[string]interface{}), resourceType)
+			mappedKey := key
+			if regexID.Match([]byte(key)) {
+				mappedKey = resourceIDFromBridge(key, idx)
+			}
+			all[mappedKey] = postProcess(idx, item.(map[string]interface{}), resourceType)
 		}
 		wg.Done()
 	})
@@ -189,49 +225,47 @@ func resourceNew(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{ "lastscan": "none" }`)
 }
 
-func resourceSingle(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	var resourceType = vars["resourcetype"]
-	var resourceID = vars["resourceid"]
+func resourceSingle(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		var resourceType = vars["resourcetype"]
+		var resourceID = vars["resourceid"]
 
-	if resourceType == "resourcelinks" || resourceType == "rules" || resourceType == "scenes" {
-		httpError(r)(w, "Not implemented", 404)
-		return
-	}
+		// Special group which lists all lights/sensors in the home
+		if resourceType == "groups" && resourceID == "0" {
+			w.WriteHeader(http.StatusOK)
+			bytes, _ := json.Marshal(getGroupZero(details))
+			w.Write(bytes)
+			return
+		}
 
-	// Special group which lists all lights/sensors in the home
-	if resourceType == "groups" && resourceID == "0" {
+		// Getting single resource from delegate bridge
+		bix, rid := resourceIDToBridge(resourceID)
+		if bix >= len(data.Delegates) {
+			httpError(r)(w, "Bridge not found", 404)
+			return
+		}
+		bridge := data.Delegates[bix]
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
+		if err != nil {
+			httpError(r)(w, err.Error(), 500)
+			return
+		}
+
+		res, err := netClient.Do(req)
+		if err != nil {
+			httpError(r)(w, err.Error(), 500)
+			return
+		}
+
+		defer res.Body.Close()
+		var target map[string]interface{}
+		json.NewDecoder(res.Body).Decode(&target)
+		postProcess(bix, target, resourceType)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "{}") // TODO fetch from all, and merge
-		return
+		bytes, _ := json.Marshal(target)
+		w.Write(bytes)
 	}
-
-	// Getting single resource from delegate bridge
-	bix, rid := resourceIDToBridge(resourceID)
-	if bix >= len(data.Delegates) {
-		httpError(r)(w, "Bridge not found", 404)
-		return
-	}
-	bridge := data.Delegates[bix]
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
-	if err != nil {
-		httpError(r)(w, err.Error(), 500)
-		return
-	}
-
-	res, err := netClient.Do(req)
-	if err != nil {
-		httpError(r)(w, err.Error(), 500)
-		return
-	}
-
-	defer res.Body.Close()
-	var target map[string]interface{}
-	json.NewDecoder(res.Body).Decode(&target)
-	postProcess(bix, target, resourceType)
-	w.WriteHeader(http.StatusOK)
-	bytes, _ := json.Marshal(target)
-	w.Write(bytes)
 }
 
 func forEachBridge(fn func(bridge *Bridge, idx int)) int {
@@ -277,22 +311,109 @@ func convertIdsInMap(bridgeIdx int, any interface{}) interface{} {
 	return any
 }
 
-var pathCompmonentTypeID = regexp.MustCompile(`[a-z]+/[0-9]+`)
+var pathComponentTypeID = regexp.MustCompile(`[a-z]+/[0-9]+`)
 
 func convertIdsInURL(bridgeIdx int, any interface{}) interface{} {
 	str, ok := any.(string)
 	if ok {
-		result := pathCompmonentTypeID.ReplaceAllFunc([]byte(str), func(match []byte) []byte {
-			split := bytes.Index(match, []byte("/"))
+		result := pathComponentTypeID.ReplaceAllStringFunc(str, func(match string) string {
+			split := strings.Index(match, "/")
 			if split < 0 {
 				return match
 			}
 			resourceType := match[0 : split+1]
-			resourceID := resourceIDFromBridge(string(match[split+1:]), bridgeIdx)
-			return append(resourceType, []byte(resourceID)...)
+			resourceID := resourceIDFromBridge(match[split+1:], bridgeIdx)
+			return fmt.Sprintf("%s%s", resourceType, resourceID)
+		})
+		return result
+	}
+	fmt.Print("nok")
+	return any
+}
+
+var appDataRoomID = regexp.MustCompile(`_r[0-9]+`)
+
+func convertIdsAppData(bridgeIdx int, any interface{}) interface{} {
+	str, ok := any.(string)
+	if ok {
+		result := appDataRoomID.ReplaceAllFunc([]byte(str), func(match []byte) []byte {
+			resourceID := resourceIDFromBridge(string(match[2:]), bridgeIdx)
+			return append([]byte("_r"), []byte(resourceID)...)
 		})
 		return string(result)
 	}
 	fmt.Print("nok")
 	return any
+}
+
+func fetchInternal(url string, details *hue.AdvertiseDetails) map[string]interface{} {
+	res, err := netClient.Get(fmt.Sprintf("http://%s:%d%s", details.Network.IP, details.HTTPPort, url))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer res.Body.Close()
+	var target map[string]interface{}
+	err = json.NewDecoder(res.Body).Decode(&target)
+	if err != nil {
+		log.Printf("Unmarshal incorrect: %s\n", err)
+	}
+	return target
+}
+
+func getGroupZero(details *hue.AdvertiseDetails) interface{} {
+	errors := make([]error, 0)
+	type GroupZero struct {
+		Name    string   `json:"name"`
+		Lights  []string `json:"lights"`
+		Sensors []string `json:"sensors"`
+		Type    string   `json:"type"`
+		State   struct {
+			AllOn bool `json:"all_on"`
+			AnyOn bool `json:"any_on"`
+		}
+		Recycle bool                   `json:"recycle"`
+		Action  map[string]interface{} `json:"action"`
+	}
+	var wg sync.WaitGroup
+	var group GroupZero
+	group.State.AllOn = true
+	group.State.AnyOn = false
+
+	count := forEachBridge(func(bridge *Bridge, idx int) {
+		res, err := netClient.Get(fmt.Sprintf("http://%s/api/%s/groups/0", bridge.IP, bridge.Users[0].ID))
+		if err != nil {
+			errors = append(errors, err)
+			wg.Done()
+			return
+		}
+		defer res.Body.Close()
+		var target GroupZero
+		json.NewDecoder(res.Body).Decode(&target)
+
+		group.Name = target.Name
+		group.Recycle = target.Recycle
+		group.Type = target.Type
+		group.Action = target.Action
+		for _, ID := range target.Lights {
+			group.Lights = append(group.Lights, resourceIDFromBridge(ID, idx))
+		}
+		for _, ID := range target.Sensors {
+			group.Sensors = append(group.Sensors, resourceIDFromBridge(ID, idx))
+		}
+		group.State.AllOn = target.State.AllOn && group.State.AllOn
+		group.State.AnyOn = target.State.AnyOn || group.State.AnyOn
+		wg.Done()
+	})
+
+	wg.Add(count)
+	wg.Wait()
+	for _, err := range errors {
+		if strings.HasSuffix(err.Error(), "connect: no route to host") {
+			// Bridge might be offline or moved to other IP: trigger scan
+			go rescan()
+		}
+		fmt.Printf("NonFatalError: %v\n", err)
+	}
+	return group
 }

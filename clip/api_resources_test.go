@@ -51,6 +51,12 @@ func TestUrlConversion(t *testing.T) {
 	if bridge != bridgeExpected {
 		t.Errorf("Should convert bridge url, expected: '%s', actual: '%s'", bridgeExpected, bridge)
 	}
+
+	sensor := convertIdsInURL(17, "/sensors/36/state")
+	sensorExpected := fmt.Sprintf("/sensors/%s/state", resourceIDFromBridge("36", 17))
+	if sensor != sensorExpected {
+		t.Errorf("Should convert sensor state url, expected: '%s', actual: '%s'", sensorExpected, sensor)
+	}
 }
 
 func TestApiGroupPutOk(t *testing.T) {
