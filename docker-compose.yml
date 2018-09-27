@@ -13,5 +13,6 @@ services:
         BASE: resin/raspberry-pi2-alpine
     expose:
       - "80"
+    network_mode: host
     volumes:
       - 'resin-data:/data'
