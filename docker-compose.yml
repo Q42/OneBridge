@@ -1,8 +1,7 @@
-version: '2'
-
+version: '2.1'
+networks: {}
 volumes:
-  resin-data:
-
+  resin-data: {}
 services:
   main:
     build:
@@ -11,8 +10,14 @@ services:
         GOOS: linux
         GOARCH: arm
         BASE: resin/raspberry-pi2-alpine
-    expose:
-      - "80"
+    privileged: true
+    restart: always
     network_mode: host
     volumes:
       - 'resin-data:/data'
+    labels:
+      io.resin.features.kernel-modules: '1'
+      io.resin.features.firmware: '1'
+      io.resin.features.dbus: '1'
+      io.resin.features.supervisor-api: '1'
+      io.resin.features.resin-api: '1'
