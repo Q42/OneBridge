@@ -227,6 +227,11 @@ func resourceUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bix, rid := resourceIDToBridge(resourceID)
+
+	if bix < 0 { // scene IDs are unique, we need to first find the resource
+		bix, _ = locateBridgeResource(resourceType, rid)
+	}
+
 	if bix >= len(data.Delegates) {
 		httpError(r)(w, "Bridge not found", 404)
 		return
@@ -271,24 +276,10 @@ func resourceSingle(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r
 
 		// Getting single resource from delegate bridge
 		bix, rid := resourceIDToBridge(resourceID)
+
 		if bix == -1 { // eg. scene id, unique string, not relatable to single bridge
-			once := make(chan map[string]interface{})
-			forEachBridge(func(bridge *Bridge, idx int) {
-				req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
-				res, _ := netClient.Do(req)
-				if res.StatusCode == 200 {
-					defer res.Body.Close()
-					var target map[string]interface{}
-					json.NewDecoder(res.Body).Decode(&target)
-					if target != nil {
-						once <- target
-					}
-				}
-			})
-			target := <-once
-			postProcess(bix, target, resourceType)
-			w.WriteHeader(http.StatusOK)
-			bytes, _ := json.Marshal(target)
+			_, data := locateBridgeResource(resourceType, rid)
+			bytes, _ := json.Marshal(data)
 			w.Write(bytes)
 			return
 		}
@@ -318,6 +309,31 @@ func resourceSingle(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r
 		bytes, _ := json.Marshal(target)
 		w.Write(bytes)
 	}
+}
+
+// Some resources have unique string ids, which we do not map
+// This method sends requests to ALL bridges to find out where these resources live.
+func locateBridgeResource(resourceType string, rid string) (int, interface{}) {
+	type result struct {
+		data      map[string]interface{}
+		bridgeIdx int
+	}
+	once := make(chan result)
+	forEachBridge(func(bridge *Bridge, idx int) {
+		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
+		res, _ := netClient.Do(req)
+		if res.StatusCode == 200 {
+			defer res.Body.Close()
+			var data map[string]interface{}
+			json.NewDecoder(res.Body).Decode(&data)
+			if data != nil {
+				once <- result{data, idx}
+			}
+		}
+	})
+	target := <-once
+	postProcess(target.bridgeIdx, target.data, resourceType)
+	return target.bridgeIdx, target.data
 }
 
 func forEachBridge(fn func(bridge *Bridge, idx int)) int {
