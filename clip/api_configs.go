@@ -46,7 +46,7 @@ func serveRoot(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *htt
 
 		var root = configFull{Config: config}
 
-		// TODO merge all
+		// TODO use full configs for this
 		root.Lights = fetchInternal("/api/0/lights", details)
 		root.Groups = fetchInternal("/api/0/groups", details)
 		root.Scenes = fetchInternal("/api/0/scenes", details)
