@@ -24,6 +24,7 @@ var router = func() *mux.Router {
 
 func TestApiRootPostWithoutBody(t *testing.T) {
 	req, err := http.NewRequest("POST", "/api/", nil)
+	req.Header.Add("User-Agent", "Hue")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,6 +44,7 @@ func TestApiRootPostOk(t *testing.T) {
 	payload := fmt.Sprintf(`{ "devicetype": "%s" }`, "Golang#Testing")
 
 	req, err := http.NewRequest("POST", "/api/", strings.NewReader(payload))
+	req.Header.Add("User-Agent", "Hue")
 	if err != nil {
 		t.Fatal(err)
 	}
