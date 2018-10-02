@@ -57,6 +57,7 @@ func postProcess(bridgeIdx int, item map[string]interface{}, resourceType string
 	}
 	if resourceType == "scenes" {
 		item["lights"] = convertIdsInArray(bridgeIdx, item["lights"])
+		item["lightstates"] = convertIdsInMap(bridgeIdx, item["lightstates"])
 		appData, hasAppdata := item["appdata"].(map[string]interface{})
 		if hasAppdata && appData["data"] != nil {
 			appData["data"] = convertIdsAppData(bridgeIdx, appData["data"])
