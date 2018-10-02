@@ -387,7 +387,6 @@ func fetchInternal(url string, details *hue.AdvertiseDetails) map[string]interfa
 }
 
 func getGroupZero(details *hue.AdvertiseDetails) interface{} {
-	errors := make([]error, 0)
 	type GroupZero struct {
 		Name    string   `json:"name"`
 		Lights  []string `json:"lights"`
@@ -400,45 +399,60 @@ func getGroupZero(details *hue.AdvertiseDetails) interface{} {
 		Recycle bool                   `json:"recycle"`
 		Action  map[string]interface{} `json:"action"`
 	}
-	var wg sync.WaitGroup
-	var group GroupZero
-	group.State.AllOn = true
-	group.State.AnyOn = false
+	type tuple struct {
+		idx    int
+		result GroupZero
+		error  error
+	}
 
+	var wg sync.WaitGroup
+	all := make(chan tuple, len(data.Delegates))
 	count := forEachBridge(func(bridge *Bridge, idx int) {
 		res, err := netClient.Get(fmt.Sprintf("http://%s/api/%s/groups/0", bridge.IP, bridge.Users[0].ID))
 		if err != nil {
-			errors = append(errors, err)
-			wg.Done()
+			all <- tuple{idx, GroupZero{}, err}
 			return
 		}
 		defer res.Body.Close()
 		var target GroupZero
 		json.NewDecoder(res.Body).Decode(&target)
 
-		group.Name = target.Name
-		group.Recycle = target.Recycle
-		group.Type = target.Type
-		group.Action = target.Action
-		for _, ID := range target.Lights {
-			group.Lights = append(group.Lights, resourceIDFromBridge(ID, idx))
-		}
-		for _, ID := range target.Sensors {
-			group.Sensors = append(group.Sensors, resourceIDFromBridge(ID, idx))
-		}
-		group.State.AllOn = target.State.AllOn && group.State.AllOn
-		group.State.AnyOn = target.State.AnyOn || group.State.AnyOn
-		wg.Done()
+		all <- tuple{idx, target, nil}
 	})
-
 	wg.Add(count)
-	wg.Wait()
-	for _, err := range errors {
-		if strings.HasSuffix(err.Error(), "connect: no route to host") {
-			// Bridge might be offline or moved to other IP: trigger scan
-			go rescan()
+
+	var group GroupZero
+	group.State.AllOn = true
+	group.State.AnyOn = false
+
+	go func() {
+		for item := range all {
+			if item.error != nil {
+				if strings.HasSuffix(item.error.Error(), "connect: no route to host") {
+					// Bridge might be offline or moved to other IP: trigger scan
+					go rescan()
+				}
+				fmt.Printf("NonFatalError: %v\n", item.error)
+				wg.Done()
+				continue
+			}
+
+			group.Name = item.result.Name
+			group.Recycle = item.result.Recycle
+			group.Type = item.result.Type
+			group.Action = item.result.Action
+			for _, ID := range item.result.Lights {
+				group.Lights = append(group.Lights, resourceIDFromBridge(ID, item.idx))
+			}
+			for _, ID := range item.result.Sensors {
+				group.Sensors = append(group.Sensors, resourceIDFromBridge(ID, item.idx))
+			}
+			group.State.AllOn = item.result.State.AllOn && group.State.AllOn
+			group.State.AnyOn = item.result.State.AnyOn || group.State.AnyOn
+			wg.Done()
 		}
-		fmt.Printf("NonFatalError: %v\n", err)
-	}
+	}()
+
+	wg.Wait()
 	return group
 }
