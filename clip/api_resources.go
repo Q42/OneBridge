@@ -95,8 +95,18 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 	// }
 
 	errors := make([]error, 0)
-	var all = make(map[string]interface{})
+
+	type tuple struct {
+		key   string
+		value interface{}
+	}
+	var allChannel = make(chan tuple, len(data.Delegates))
 	var wg sync.WaitGroup
+
+	// TODO idiomatic way to structure this:
+	// forEachBridge(fetch("http://"))
+	// 	.then(postProcess)
+	// 	.merge(byThisGoRoutine)
 
 	count := forEachBridge(func(bridge *Bridge, idx int) {
 		res, err := netClient.Get(fmt.Sprintf("http://%s/api/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType))
@@ -108,18 +118,22 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 		defer res.Body.Close()
 		var target map[string]interface{}
 		json.NewDecoder(res.Body).Decode(&target)
+
+		wg.Add(len(target))
 		for key, item := range target {
 			mappedKey := key
 			if regexID.Match([]byte(key)) {
 				mappedKey = resourceIDFromBridge(key, idx)
 			}
-			all[mappedKey] = postProcess(idx, item.(map[string]interface{}), resourceType)
+			allChannel <- tuple{
+				mappedKey,
+				postProcess(idx, item.(map[string]interface{}), resourceType),
+			}
 		}
 		wg.Done()
 	})
-
 	wg.Add(count)
-	wg.Wait()
+
 	for _, err := range errors {
 		if strings.HasSuffix(err.Error(), "connect: no route to host") {
 			// Bridge might be offline or moved to other IP: trigger scan
@@ -127,7 +141,18 @@ func resourceList(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("NonFatalError: %v\n", err)
 	}
+
+	var all = make(map[string]interface{})
+	go func() {
+		for item := range allChannel {
+			all[item.key] = item.value
+			wg.Done()
+		}
+	}()
+
+	wg.Wait()
 	err := json.NewEncoder(w).Encode(all)
+
 	if err != nil {
 		fmt.Printf("FatalError: %v\n", err)
 		httpError(r)(w, err.Error(), 500)
