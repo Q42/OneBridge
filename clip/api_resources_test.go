@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"onebridge/hue"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/gorilla/mux"
 )
 
 func TestIdConversion(t *testing.T) {
@@ -63,6 +66,7 @@ func TestApiGroupPutOk(t *testing.T) {
 	payload := `{ "type": "Other" }`
 	// group 20920 = bridge 18, group 17
 	req, err := http.NewRequest("PUT", "/api/0/groups/20920", strings.NewReader(payload))
+	req.Header.Add("User-Agent", "Hue")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +84,30 @@ func TestApiGroupPutOk(t *testing.T) {
 	matched, err := regexp.MatchString(expected, rr.Body.String())
 	if !matched || err != nil {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	}
+
+}
+
+func TestParallelFullConfig(t *testing.T) {
+
+	bridgeServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(200)
+		res.Write([]byte("body"))
+	}))
+	defer func() { bridgeServer.Close() }()
+
+	details := hue.AdvertiseDetails{}
+	h := mux.NewRouter()
+	Register(h.PathPrefix("/api").Subrouter(), &details)
+
+	testServer := httptest.NewServer(h)
+	defer func() { testServer.Close() }()
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/0", testServer.URL), nil)
+	req.Header.Add("User-Agent", "Hue")
+
+	if err != nil {
+		t.Fatal(err)
 	}
 
 }
