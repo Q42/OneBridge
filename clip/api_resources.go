@@ -27,7 +27,7 @@ var nineBaseID, _ = regexp.Compile("[0-8]+9[0-8]+")
 func resourceIDToBridge(id string) (int, string) {
 	if !nineBaseID.MatchString(id) {
 		fmt.Printf("Could not convert '%s' to tuple of bridge id and resource id.\n", id)
-		return 0, id
+		return -1, id
 	}
 	split := strings.Index(id, "9")
 	bid := id[:split]
@@ -266,6 +266,28 @@ func resourceSingle(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r
 
 		// Getting single resource from delegate bridge
 		bix, rid := resourceIDToBridge(resourceID)
+		if bix == -1 { // eg. scene id, unique string, not relatable to single bridge
+			once := make(chan map[string]interface{})
+			forEachBridge(func(bridge *Bridge, idx int) {
+				req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/api/%s/%s/%s", bridge.IP, bridge.Users[0].ID, resourceType, rid), nil)
+				res, _ := netClient.Do(req)
+				if res.StatusCode == 200 {
+					defer res.Body.Close()
+					var target map[string]interface{}
+					json.NewDecoder(res.Body).Decode(&target)
+					if target != nil {
+						once <- target
+					}
+				}
+			})
+			target := <-once
+			postProcess(bix, target, resourceType)
+			w.WriteHeader(http.StatusOK)
+			bytes, _ := json.Marshal(target)
+			w.Write(bytes)
+			return
+		}
+
 		if bix >= len(data.Delegates) {
 			httpError(r)(w, "Bridge not found", 404)
 			return
