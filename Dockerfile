@@ -1,13 +1,9 @@
 ARG BASE=alpine
 
-FROM golang:1.9 AS builder
+FROM golang:1.11 AS builder
 
 RUN mkdir -p /go/src/onebridge
 WORKDIR /go/src/onebridge
-
-RUN go get -u github.com/golang/dep/cmd/dep
-COPY Gopkg.toml Gopkg.lock ./
-RUN dep ensure -vendor-only
 
 ADD clip /go/src/onebridge/clip
 ADD hue /go/src/onebridge/hue
