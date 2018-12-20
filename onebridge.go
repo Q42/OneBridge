@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"onebridge/clip"
-	"onebridge/hue"
+	"github.com/q42/onebridge/clip"
+	"github.com/q42/onebridge/hue"
 
 	"github.com/elazarl/goproxy"
 	"github.com/gorilla/handlers"

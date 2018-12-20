@@ -6,9 +6,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"onebridge/hue"
 	"strings"
 	"time"
+
+	"github.com/q42/onebridge/hue"
 )
 
 func linkNewUser(details *hue.AdvertiseDetails) func(w http.ResponseWriter, r *http.Request) {

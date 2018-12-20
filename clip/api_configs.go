@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"onebridge/hue"
 	"time"
+
+	"github.com/q42/onebridge/hue"
 
 	"github.com/gorilla/context"
 )

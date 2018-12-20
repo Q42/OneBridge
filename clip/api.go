@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"onebridge/hue"
+	"github.com/q42/onebridge/hue"
 
 	"github.com/gorilla/mux"
 )

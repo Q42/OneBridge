@@ -7,12 +7,13 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"onebridge/hue"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/q42/onebridge/hue"
 
 	"github.com/gorilla/mux"
 )

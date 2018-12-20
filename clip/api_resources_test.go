@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"onebridge/hue"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/q42/onebridge/hue"
 
 	"github.com/gorilla/mux"
 )

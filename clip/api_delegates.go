@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"onebridge/hue"
 	"strconv"
+
+	"github.com/q42/onebridge/hue"
 
 	"github.com/gorilla/mux"
 )
