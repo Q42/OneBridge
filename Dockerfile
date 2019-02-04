@@ -1,13 +1,15 @@
 ARG BASE=alpine
 
-FROM golang:1.11 AS builder
+FROM golang:1.11.2-alpine AS builder
+RUN apk add --no-cache git
 
-RUN mkdir -p /go/src/onebridge
-WORKDIR /go/src/onebridge
+RUN mkdir -p /src
+WORKDIR /src/
 
-ADD clip /go/src/onebridge/clip
-ADD hue /go/src/onebridge/hue
-ADD onebridge.go /go/src/onebridge
+ADD clip /src/clip
+ADD hue /src/hue
+ADD go.mod go.sum onebridge.go /src/
+
 ARG GOOS=linux
 RUN echo "$GOOS"
 ARG GOARCH=amd64
